@@ -1,0 +1,12 @@
+pipeline:
+  exploration_rate: 0.15
+  cluster_threshold: 0.6
+  max_daily_articles: 20
+
+web:
+  host: "127.0.0.1"
+  port: 8765
+
+data:
+  full_text_retention_days: 90
+  analysis_cache_retention_days: 180
