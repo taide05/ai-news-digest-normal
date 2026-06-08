@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>AI 资讯管家 <span class="date">{{ today }}</span></h1>
+
+{% if empty %}
+<div class="empty-state">
+    <h2>欢迎！</h2>
+    <p>还没有资讯数据。</p>
+    <p>请双击桌面上的「AI资讯」快捷方式来采集第一期资讯。</p>
+</div>
+{% else %}
+<div class="digest-summary">
+    今日 {{ clusters|sum(attribute='articles')|map('length')|sum if clusters else 0 }} 篇文章，{{ clusters|length }} 个话题
+</div>
+
+<div class="clusters">
+{% for cluster in clusters %}
+<div class="cluster-card">
+    <h3 class="cluster-label">
+        {{ cluster.label }}
+        <span class="article-count">[{{ cluster.articles|length }} 篇相关]</span>
+    </h3>
+    {% for article in cluster.articles %}
+    <div class="article-item">
+        <a href="/reader/{{ article.id }}" class="article-link">{{ article.title }}</a>
+        <span class="article-meta">
+            {{ article.source_id }} · {{ article.language | upper }}
+            {% if article.published_at %} · {{ article.published_at[:10] }}{% endif %}
+        </span>
+    </div>
+    {% endfor %}
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<nav class="bottom-nav">
+    <a href="/search">搜索</a>
+    <a href="/concepts">概念词典</a>
+    <a href="/review">周报</a>
+</nav>
+{% endblock %}

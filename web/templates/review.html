@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>周报</h1>
+
+{% if review %}
+<div class="review-content">
+    {{ review.content | replace('\n', '<br>') | safe }}
+</div>
+<p class="review-meta">周期：{{ review.week_start }} ~ {{ review.week_end }}</p>
+{% else %}
+<p>{{ week_start }} ~ {{ week_end }} 的周报尚未生成。</p>
+<button hx-post="/api/generate-review" hx-target="#review-result"
+        hx-swap="innerHTML" class="btn btn-primary">生成周报</button>
+<div id="review-result"></div>
+{% endif %}
+
+<nav class="bottom-nav">
+    <a href="/">首页</a>
+    <a href="/search">搜索</a>
+    <a href="/concepts">概念词典</a>
+</nav>
+{% endblock %}

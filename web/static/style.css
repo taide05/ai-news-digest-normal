@@ -1,0 +1,70 @@
+:root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-hover: #79c0ff;
+    --btn-bg: #21262d;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-width: 1024px;
+    line-height: 1.6;
+}
+
+.container { max-width: 960px; margin: 0 auto; padding: 24px 32px; }
+h1 { font-size: 1.5rem; margin-bottom: 16px; }
+h1 .date { color: var(--text-muted); font-size: 0.9rem; font-weight: normal; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); text-decoration: underline; }
+
+.empty-state { text-align: center; padding: 80px 0; color: var(--text-muted); }
+.digest-summary { color: var(--text-muted); margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+
+.cluster-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 12px; }
+.cluster-label { font-size: 1.1rem; color: var(--accent); margin-bottom: 8px; }
+.article-count { color: var(--text-muted); font-size: 0.8rem; font-weight: normal; }
+.article-item { padding: 6px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: baseline; }
+.article-item:last-child { border-bottom: none; }
+.article-meta { color: var(--text-muted); font-size: 0.85rem; white-space: nowrap; margin-left: 12px; }
+
+.reader-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.feedback-buttons button { background: var(--btn-bg); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-left: 8px; }
+.feedback-buttons button:hover { border-color: var(--accent); }
+.article-body { margin: 20px 0; line-height: 1.8; font-size: 1rem; }
+.article-actions { margin: 16px 0; display: flex; gap: 8px; }
+
+.btn { display: inline-block; background: var(--btn-bg); border: 1px solid var(--border); color: var(--text); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; text-decoration: none; }
+.btn:hover { border-color: var(--accent); color: var(--accent-hover); }
+.btn-primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+.btn-primary:hover { background: #388bfd; }
+
+.concept-lookup { margin: 12px 0; display: flex; align-items: center; gap: 8px; }
+.concept-lookup .hint { color: var(--text-muted); font-size: 0.85rem; }
+.analysis-section { margin: 20px 0; padding: 16px; background: var(--surface); border-radius: 8px; border: 1px solid var(--border); }
+.analysis-section h3 { margin-bottom: 12px; color: var(--accent); }
+.skeleton { color: var(--text-muted); animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.search-input { width: 100%; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 1rem; margin-bottom: 12px; }
+.search-results { margin: 16px 0; }
+.search-result-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.snippet { color: var(--text-muted); font-size: 0.9rem; margin-top: 4px; }
+.snippet mark { background: rgba(88, 166, 255, 0.3); color: var(--text); padding: 1px 3px; border-radius: 2px; }
+
+.concepts-list { margin: 16px 0; }
+.concept-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.concept-item strong { color: var(--accent); }
+.query-count { color: var(--text-muted); font-size: 0.8rem; margin-left: 8px; }
+.review-content { line-height: 1.8; margin: 16px 0; }
+.review-meta { color: var(--text-muted); font-size: 0.85rem; }
+
+.bottom-nav { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border); display: flex; gap: 24px; justify-content: center; }
+hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }

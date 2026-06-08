@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>概念词典</h1>
+
+{% if concepts %}
+<div class="concepts-list">
+    {% for c in concepts %}
+    <div class="concept-item">
+        <strong>{{ c.term }}</strong>
+        <span class="query-count">查询 {{ c.query_count }} 次</span>
+        {% if c.definition %}
+        <p>{{ c.definition }}</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p>还没有查过任何概念。在读文章时选中不理解的术语，点击「查这个概念」来添加。</p>
+{% endif %}
+
+<nav class="bottom-nav">
+    <a href="/">首页</a>
+    <a href="/search">搜索</a>
+    <a href="/review">周报</a>
+</nav>
+{% endblock %}

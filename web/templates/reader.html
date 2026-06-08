@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="reader-header">
+    <a href="/" class="back-link">&larr; 返回首页</a>
+    <div class="feedback-buttons">
+        <button hx-post="/api/feedback/{{ article.id }}?feedback=interested" hx-swap="none">感兴趣</button>
+        <button hx-post="/api/feedback/{{ article.id }}?feedback=not_interested" hx-swap="none">不感兴趣</button>
+    </div>
+</div>
+
+<h1>{{ article.title }}</h1>
+<div class="article-meta">
+    来源：{{ article.source_id }}
+    {% if article.author %}· 作者：{{ article.author }}{% endif %}
+    {% if article.published_at %}· {{ article.published_at[:10] }}{% endif %}
+    · {{ article.language | upper }}
+</div>
+
+<hr>
+
+<div class="article-body">
+    {{ article.full_text or "[全文加载中...]" }}
+</div>
+
+<hr>
+
+<div class="article-actions">
+    <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer" class="btn">打开原网页</a>
+    {% if article.language == 'en' %}
+    <button hx-get="/api/translate/{{ article.id }}" hx-target="#translation-result"
+            hx-swap="innerHTML" hx-ext="sse" sse-connect="/api/translate/{{ article.id }}"
+            class="btn">翻译全文</button>
+    <div id="translation-result"></div>
+    {% endif %}
+</div>
+
+<div class="concept-lookup">
+    <span class="hint">选中文字后点击按钮：</span>
+    <button id="concept-btn" class="btn" onclick="lookupConcept()">查这个概念</button>
+</div>
+
+<div class="analysis-section" id="core-insight">
+    <h3>核心观点</h3>
+    <div hx-get="/api/analyze/{{ article.id }}?type=core_insight" hx-trigger="load"
+         hx-ext="sse" sse-connect="/api/analyze/{{ article.id }}?type=core_insight">
+        <div class="skeleton">正在生成核心观点...</div>
+    </div>
+</div>
+
+<div class="analysis-section">
+    <button hx-get="/api/analyze/{{ article.id }}?type=what_it_means" hx-target="#what-it-means-result"
+            hx-swap="innerHTML" hx-ext="sse"
+            sse-connect="/api/analyze/{{ article.id }}?type=what_it_means"
+            class="btn btn-primary">
+        这意味着什么？
+    </button>
+    <div id="what-it-means-result"></div>
+</div>
+
+<script>
+function lookupConcept() {
+    const selection = window.getSelection().toString().trim();
+    if (!selection || selection.length > 100) return;
+    fetch('/api/concept-lookup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({term: selection, article_id: '{{ article.id }}'})
+    }).then(r => r.json()).then(d => {
+        if (d.definition) alert(d.term + ': ' + d.definition);
+    });
+}
+</script>
+{% endblock %}

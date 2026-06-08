@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>搜索</h1>
+<form method="get" action="/search">
+    <input type="text" name="q" value="{{ query }}" placeholder="搜索已读文章..." class="search-input" autofocus>
+    <button type="submit" class="btn">搜索</button>
+</form>
+
+{% if results %}
+<div class="search-results">
+    {% for r in results %}
+    <div class="search-result-item">
+        <a href="/reader/{{ r.id }}">{{ r.title }}</a>
+        <span class="article-meta">{{ r.source_id }} · {{ r.language | upper }}</span>
+        <p class="snippet">{{ r.snippet | safe }}</p>
+    </div>
+    {% endfor %}
+</div>
+{% elif query %}
+<p>没有找到结果。</p>
+{% endif %}
+
+<nav class="bottom-nav">
+    <a href="/">首页</a>
+    <a href="/concepts">概念词典</a>
+    <a href="/review">周报</a>
+</nav>
+{% endblock %}
