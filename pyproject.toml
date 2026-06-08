@@ -1,0 +1,26 @@
+[project]
+name = "ai-news-digest"
+version = "0.1.0"
+description = "Personal AI news digest with local web panel"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "jinja2",
+    "feedparser",
+    "httpx",
+    "readability-lxml",
+    "chardet",
+    "scikit-learn",
+    "openai",
+    "python-dotenv",
+    "pyyaml",
+    "tenacity",
+]
+
+[project.scripts]
+ai-news = "main:run"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
