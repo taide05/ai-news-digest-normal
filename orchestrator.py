@@ -248,11 +248,17 @@ def generate_weekly_review(db_conn, ai_client, cfg):
     system, user = build_review_prompt(articles, concepts, interested, not_interested)
     content, tokens = ai_client.chat(system, user, max_tokens=2048)
 
-    # Build Markdown with top concepts and recommendations
-    from db.models import get_recommendations_gap
-    top_concepts = get_concepts_list(db_conn, limit=5)
-    top_concept_str = ", ".join(c["term"] for c in top_concepts) or "暂无数据"
-    recs = get_recommendations_gap(db_conn, limit=3)
+    # Build Markdown with statistics and recommendations
+    from db.models import (get_weekly_hot_concepts, get_weekly_growing_concepts,
+                           get_recommendations_cluster)
+
+    hot = get_weekly_hot_concepts(db_conn, week_start, limit=5)
+    hot_str = ", ".join(f"{c['term']} ({c['count']}次)" for c in hot) or "暂无数据"
+
+    growing = get_weekly_growing_concepts(db_conn, week_start, limit=3)
+    growing_str = ", ".join(f"{c['term']} ({c['count']}次)" for c in growing) or "暂无数据"
+
+    recs = get_recommendations_cluster(db_conn, limit=3)
     if recs:
         rec_lines = "\n".join(f"- [{r['title']}](/reader/{r['id']})" for r in recs)
     else:
@@ -264,7 +270,10 @@ def generate_weekly_review(db_conn, ai_client, cfg):
 {content}
 
 ## 本周热词
-{top_concept_str}
+{hot_str}
+
+## 新晋概念
+{growing_str}
 
 ## 推荐阅读
 {rec_lines}

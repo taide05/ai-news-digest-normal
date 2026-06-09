@@ -225,6 +225,31 @@ def cache_cross_analysis(conn, cluster_id: str, analysis_type: str, content: str
             conn.commit()
 
 
+def _get_weekly_concepts_by_date(conn, week_start: str, date_column: str,
+                                  limit: int) -> list[dict]:
+    """Unified query: get concepts filtered by a date column >= week_start."""
+    assert date_column in ("last_seen", "first_seen"), f"Invalid date column: {date_column}"
+    assert isinstance(week_start, str) and len(week_start) == 10, \
+        f"Invalid week_start format: {week_start}"
+    rows = conn.execute(
+        f"SELECT term, query_count FROM concepts "
+        f"WHERE {date_column} >= ? "
+        f"ORDER BY query_count DESC LIMIT ?",
+        (week_start, limit)
+    ).fetchall()
+    return [{"term": r[0], "count": r[1]} for r in rows]
+
+
+def get_weekly_hot_concepts(conn, week_start: str, limit: int = 5) -> list[dict]:
+    """Top concepts by query_count seen this week."""
+    return _get_weekly_concepts_by_date(conn, week_start, "last_seen", limit)
+
+
+def get_weekly_growing_concepts(conn, week_start: str, limit: int = 3) -> list[dict]:
+    """New concepts created this week, ordered by query_count."""
+    return _get_weekly_concepts_by_date(conn, week_start, "first_seen", limit)
+
+
 def get_graph_data(conn, period: str = "today") -> list[dict]:
     """Return concept-article relations for the graph page.
     period: 'today' or 'week'.
