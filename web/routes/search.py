@@ -1,13 +1,10 @@
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from web.globals import get_db
 from db.models import search_articles
-from web.filters import highlight
+from web.templates import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory="web/templates")
-templates.env.filters["highlight"] = highlight
 
 
 @router.get("/search", response_class=HTMLResponse)

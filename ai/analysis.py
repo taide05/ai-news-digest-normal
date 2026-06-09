@@ -1,3 +1,16 @@
+def build_exploration_prompt(title: str, summary: str, user_concepts: list[str]) -> tuple[str, str]:
+    concepts_str = ", ".join(user_concepts[:20]) if user_concepts else "无"
+    system = "你是一个信息探索助手。判断一篇文章是否值得深入探索。"
+    user = (
+        f"用户已了解的概念：{concepts_str}\n\n"
+        f"文章标题：{title}\n"
+        f"文章摘要：{summary}\n\n"
+        f"这篇文章是否包含用户尚未接触过的新概念、新技术、新趋势？\n"
+        f"只回答「是」或「否」。"
+    )
+    return system, user
+
+
 def build_cluster_label_prompt(titles: str) -> tuple[str, str]:
     system = "你是一个信息分类助手。"
     user = f"为以下一组相关文章生成一个简短的中文标签（不超过15个字）：\n\n{titles}\n\n标签："

@@ -29,7 +29,7 @@ async def export_article(article_id: str):
     what_it_means = get_cached_analysis(db, article_id, "what_it_means") or ""
 
     md = f"# {article['title']}\n\n"
-    md += f"**来源:** {article['source_id']} | **日期:** {article.get('published_at', '')[:10]}\n\n"
+    md += f"**来源:** {article['source_id']} | **日期:** {(article.get('published_at') or '')[:10]}\n\n"
     md += f"{article['url']}\n\n---\n\n## 核心观点\n\n{insight}\n\n"
     md += f"---\n\n## 这意味着什么\n\n{what_it_means}\n\n---\n\n## 摘要\n\n{article.get('summary', '')}\n"
 

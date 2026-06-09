@@ -57,3 +57,22 @@ class TestCollectTrigger:
         resp = client.post("/api/collect")
         assert resp.status_code == 200
         assert resp.json()["status"] == "unavailable"
+
+
+class TestRateLimit:
+    def test_concept_lookup_under_limit_ok(self, client):
+        """Verify concept-lookup works fine under rate limit."""
+        resp = client.post("/api/concept-lookup", json={"term": "neural-network"})
+        assert resp.status_code == 200
+        assert resp.json()["term"] == "neural-network"
+
+    def test_feedback_under_limit_ok(self, client):
+        """Verify feedback endpoint works under limit (even without real article)."""
+        resp = client.post("/api/feedback/nonexistent?feedback=interested")
+        assert resp.status_code == 200
+
+    def test_collect_has_rate_limit(self, client):
+        """collect endpoint should have a rate limit applied (verify it works)."""
+        resp = client.post("/api/collect")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "unavailable"

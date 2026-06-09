@@ -14,7 +14,8 @@ def article_exists(conn: sqlite3.Connection, source_id: str, url: str) -> bool:
 
 def insert_article(conn: sqlite3.Connection, source_id: str, url: str, title: str,
                    summary: str = "", content: str = "", author: str | None = None,
-                   published_at: str | None = None, language: str = "en") -> str | None:
+                   published_at: str | None = None, language: str = "en",
+                   commit: bool = True) -> str | None:
     norm_url = normalize_url(url)
     aid = make_article_id(source_id, url)
     try:
@@ -23,7 +24,8 @@ def insert_article(conn: sqlite3.Connection, source_id: str, url: str, title: st
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (aid, source_id, norm_url, title, summary, content, author, published_at, language)
         )
-        conn.commit()
+        if commit:
+            conn.commit()
         return aid
     except sqlite3.IntegrityError:
         return None
@@ -37,62 +39,76 @@ def get_article(conn: sqlite3.Connection, article_id: str) -> dict | None:
     return dict(zip(cols, row))
 
 
-def set_full_text(conn: sqlite3.Connection, article_id: str, full_text: str):
+def set_full_text(conn: sqlite3.Connection, article_id: str, full_text: str,
+                  commit: bool = True):
     conn.execute("UPDATE articles SET full_text = ? WHERE id = ?", (full_text, article_id))
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 
-def record_read(conn: sqlite3.Connection, article_id: str) -> int:
+def record_read(conn: sqlite3.Connection, article_id: str, commit: bool = True) -> int:
     cur = conn.execute("INSERT INTO read_records (article_id) VALUES (?)", (article_id,))
-    conn.commit()
+    if commit:
+        conn.commit()
     return cur.lastrowid
 
 
-def set_feedback(conn: sqlite3.Connection, article_id: str, feedback: str):
+def set_feedback(conn: sqlite3.Connection, article_id: str, feedback: str,
+                  commit: bool = True):
     conn.execute(
         "UPDATE read_records SET feedback = ? WHERE article_id = ? AND feedback IS NULL AND id = (SELECT MAX(id) FROM read_records WHERE article_id = ?)",
         (feedback, article_id, article_id)
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
-def get_or_create_concept(conn: sqlite3.Connection, term: str, definition: str = "") -> int:
+def get_or_create_concept(conn: sqlite3.Connection, term: str, definition: str = "",
+                          commit: bool = True) -> int:
     row = conn.execute("SELECT id, query_count FROM concepts WHERE term = ?", (term,)).fetchone()
     if row:
         cid, count = row
         conn.execute("UPDATE concepts SET query_count = ?, last_seen = datetime('now') WHERE id = ?", (count + 1, cid))
         if definition:
             conn.execute("UPDATE concepts SET definition = ? WHERE id = ?", (definition, cid))
-        conn.commit()
+        if commit:
+            conn.commit()
         return cid
     else:
         cur = conn.execute("INSERT INTO concepts (term, definition) VALUES (?, ?)", (term, definition))
-        conn.commit()
+        if commit:
+            conn.commit()
         return cur.lastrowid
 
 
-def link_article_concept(conn: sqlite3.Connection, article_id: str, concept_id: int):
+def link_article_concept(conn: sqlite3.Connection, article_id: str, concept_id: int,
+                         commit: bool = True):
     try:
         conn.execute("INSERT INTO article_concepts (article_id, concept_id) VALUES (?, ?)", (article_id, concept_id))
-        conn.commit()
+        if commit:
+            conn.commit()
     except sqlite3.IntegrityError:
         pass
 
 
-def cache_analysis(conn: sqlite3.Connection, article_id: str, analysis_type: str, content: str, model: str = "deepseek-chat", tokens_used: int = 0):
+def cache_analysis(conn: sqlite3.Connection, article_id: str, analysis_type: str,
+                    content: str, model: str = "deepseek-chat", tokens_used: int = 0,
+                    commit: bool = True):
     try:
         conn.execute(
             "INSERT INTO analysis_cache (article_id, analysis_type, content, model, tokens_used) VALUES (?, ?, ?, ?, ?)",
             (article_id, analysis_type, content, model, tokens_used)
         )
-        conn.commit()
+        if commit:
+            conn.commit()
     except sqlite3.IntegrityError:
         conn.execute(
             "UPDATE analysis_cache SET content = ?, tokens_used = ? WHERE article_id = ? AND analysis_type = ?",
             (content, tokens_used, article_id, analysis_type)
         )
-        conn.commit()
+        if commit:
+            conn.commit()
 
 
 def get_cached_analysis(conn: sqlite3.Connection, article_id: str, analysis_type: str) -> str | None:
@@ -113,24 +129,28 @@ def get_all_sources(conn) -> list[dict]:
     return [dict(zip(cols, r)) for r in rows]
 
 
-def add_source(conn, sid: str, name: str, stype: str, config: str) -> bool:
+def add_source(conn, sid: str, name: str, stype: str, config: str,
+                commit: bool = True) -> bool:
     try:
         conn.execute(
             "INSERT INTO sources (id, name, type, config) VALUES (?, ?, ?, ?)",
             (sid, name, stype, config)
         )
-        conn.commit()
+        if commit:
+            conn.commit()
         return True
     except Exception:
         return False
 
 
-def remove_source(conn, sid: str):
+def remove_source(conn, sid: str, commit: bool = True):
     conn.execute("DELETE FROM sources WHERE id = ?", (sid,))
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
-def toggle_source(conn, sid: str, enabled: bool):
+def toggle_source(conn, sid: str, enabled: bool, commit: bool = True):
     conn.execute("UPDATE sources SET enabled = ? WHERE id = ?", (int(enabled), sid))
-    conn.commit()
+    if commit:
+        conn.commit()
 

@@ -1,14 +1,11 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from web.globals import get_db
 from utils import get_week_bounds
 from db.models import get_weekly_review
-from web.filters import nl2br
+from web.templates import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory="web/templates")
-templates.env.filters["nl2br"] = nl2br
 
 
 @router.get("/review", response_class=HTMLResponse)

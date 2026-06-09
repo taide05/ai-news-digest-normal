@@ -10,7 +10,8 @@ def has_digest_today(conn: sqlite3.Connection) -> bool:
     return row is not None
 
 
-def create_digest(conn: sqlite3.Connection, article_ids: list[str]) -> int | None:
+def create_digest(conn: sqlite3.Connection, article_ids: list[str],
+                   commit: bool = True) -> int | None:
     today = datetime.now().strftime("%Y-%m-%d")
     try:
         cur = conn.execute(
@@ -21,18 +22,20 @@ def create_digest(conn: sqlite3.Connection, article_ids: list[str]) -> int | Non
             "INSERT INTO digest_articles (digest_id, article_id) VALUES (?, ?)",
             [(digest_id, aid) for aid in article_ids]
         )
-        conn.commit()
+        if commit:
+            conn.commit()
         return digest_id
     except sqlite3.IntegrityError:
         return None
 
 
-def mark_webhook_sent(conn: sqlite3.Connection):
+def mark_webhook_sent(conn: sqlite3.Connection, commit: bool = True):
     today = datetime.now().strftime("%Y-%m-%d")
     conn.execute(
         "UPDATE daily_digests SET webhook_sent = 1 WHERE date = ?", (today,)
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def insert_cluster(conn: sqlite3.Connection, cid: str, label: str, date_str: str):

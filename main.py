@@ -70,13 +70,14 @@ async def run_collection_pipeline(db_conn, ai_client, cfg):
         aid = insert_article(db_conn, art.source_id, art.url, art.title,
                              summary=art.summary, content=art.content or "",
                              author=art.author, published_at=art.published_at,
-                             language=art.language)
+                             language=art.language, commit=False)
         if aid:
             new_articles.append({
                 "id": aid, "title": art.title, "summary": art.summary,
                 "url": art.url, "source_id": art.source_id, "language": art.language,
                 "published_at": art.published_at,
             })
+    db_conn.commit()
 
     logger.info(f"New articles: {len(new_articles)}")
     if not new_articles:
@@ -85,7 +86,6 @@ async def run_collection_pipeline(db_conn, ai_client, cfg):
     deduped = filter_duplicates_by_title(new_articles, threshold=0.85)
     clusters = cluster_articles(deduped, threshold=cfg.cluster_threshold)
 
-    import random
     today_str = datetime.now().strftime("%Y-%m-%d")
     ai_labels = {}
     for i, cluster in enumerate(clusters):
@@ -107,17 +107,25 @@ async def run_collection_pipeline(db_conn, ai_client, cfg):
             insert_cluster_article(db_conn, cid, art["id"])
     db_conn.commit()
 
-    small_clusters = [c for c in clusters if len(c) <= 2]
-    if small_clusters:
-        explore_count = max(1, int(len(new_articles) * cfg.exploration_rate))
-        explore_articles = []
-        for c in small_clusters:
-            explore_articles.extend(c)
-        random.shuffle(explore_articles)
-        explore_articles = explore_articles[:explore_count]
-        for art in explore_articles:
-            mark_article_exploration(db_conn, art["id"])
-        db_conn.commit()
+    # Smart exploration
+    if ai_client:
+        small_clusters = [c for c in clusters if len(c) <= 2]
+        if small_clusters:
+            from ai.analysis import build_exploration_prompt
+            from db.models import get_concepts_list
+            concepts = [c["term"] for c in get_concepts_list(db_conn)]
+            for c in small_clusters:
+                for art in c[:1]:  # check first article per cluster
+                    try:
+                        sys_p, usr_p = build_exploration_prompt(
+                            art.get("title", ""), art.get("summary", "") or "", concepts
+                        )
+                        answer, _ = ai_client.chat(sys_p, usr_p, max_tokens=5)
+                        if "是" in answer:
+                            mark_article_exploration(db_conn, art["id"])
+                    except Exception as e:
+                        logger.warning(f"Exploration check failed: {e}")
+            db_conn.commit()
 
     if not has_digest_today(db_conn):
         all_ids = [a["id"] for cluster in clusters for a in cluster]

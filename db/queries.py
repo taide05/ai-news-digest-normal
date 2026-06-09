@@ -54,7 +54,8 @@ def get_weekly_review(conn: sqlite3.Connection, week_start: str) -> dict | None:
 
 
 def save_weekly_review(conn: sqlite3.Connection, week_start: str, week_end: str,
-                       content: str, article_ids: list[str]):
+                       content: str, article_ids: list[str],
+                       commit: bool = True):
     ids_json = json.dumps(article_ids)
     conn.execute(
         "INSERT INTO weekly_reviews (week_start, week_end, content, article_ids) "
@@ -63,7 +64,8 @@ def save_weekly_review(conn: sqlite3.Connection, week_start: str, week_end: str,
         (week_start, week_end, content, ids_json,
          content, ids_json, week_end)
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def get_read_articles_with_insights(conn: sqlite3.Connection, since: str) -> list[dict]:
