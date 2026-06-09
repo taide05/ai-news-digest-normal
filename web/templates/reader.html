@@ -47,6 +47,12 @@
     </div>
 </div>
 
+<div hx-get="/api/auto-extract-concepts/{{ article.id }}"
+     hx-trigger="load delay:2s"
+     hx-target="#concept-tags" hx-swap="innerHTML">
+</div>
+<div id="concept-tags" style="margin:8px 0;"></div>
+
 <div class="analysis-section" id="what-it-means">
     <h3 style="cursor:pointer;" onclick="toggleSection('wim-content')">
         这意味着什么？ <span style="font-size:0.8em;color:#888;">（点击展开）</span>

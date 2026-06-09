@@ -148,3 +148,14 @@ def build_cross_comparison_prompt(cluster_articles: list[dict]) -> tuple[str, st
 
 用中文回答，简洁直接。"""
     return system, user
+
+
+def build_concept_extraction_prompt(full_text: str) -> tuple[str, str]:
+    system = "你是一个技术术语提取助手。只输出术语，不要解释。"
+    user = f"""从以下文章中提取最多 5 个 AI/技术领域的关键概念术语。
+只输出逗号分隔的术语列表，不要解释。
+如果文章不包含值得提取的概念，输出"无"。
+
+文章：
+{_truncate(full_text, 4000)}"""
+    return system, user

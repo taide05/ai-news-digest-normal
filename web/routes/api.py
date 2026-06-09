@@ -14,7 +14,8 @@ from db.models import (
 from ai.analysis import (
     build_core_insight_prompt, build_what_it_means_prompt,
     build_translation_prompt, build_concept_lookup_prompt,
-    build_cross_comparison_prompt, _EXTRACTION_ERRORS,
+    build_cross_comparison_prompt, build_concept_extraction_prompt,
+    _EXTRACTION_ERRORS,
 )
 from pipeline.extractor import extract_full_text
 
@@ -226,6 +227,55 @@ async def concept_lookup(request: Request):
         link_article_concept(db, article_id, cid)
 
     return JSONResponse({"term": term, "definition": definition})
+
+
+@router.get("/api/auto-extract-concepts/{article_id}")
+@limiter.limit("10/minute")
+async def auto_extract_concepts(article_id: str, request: Request = None):
+    db = get_db()
+    if db is None:
+        return JSONResponse({"concepts": [], "new": False})
+
+    cached = get_cached_analysis(db, article_id, "concepts")
+    if cached:
+        return JSONResponse({"concepts": json.loads(cached), "new": False})
+
+    article = get_article(db, article_id)
+    if article is None:
+        return JSONResponse({"concepts": [], "new": False})
+
+    full_text = article.get("full_text") or article.get("content") or ""
+    if not full_text or full_text in _EXTRACTION_ERROR_SET:
+        return JSONResponse({"concepts": [], "new": False})
+
+    ai = get_ai()
+    if ai is None:
+        return JSONResponse({"concepts": [], "new": False})
+
+    system, user = build_concept_extraction_prompt(full_text)
+    try:
+        raw, tokens = ai.chat(system, user, max_tokens=100)
+    except Exception as e:
+        logger.warning("Concept extraction failed for article %s: %s", article_id, e)
+        return JSONResponse({"concepts": [], "new": False})
+
+    raw = raw.strip().strip('"').strip("'")
+    if raw == "无" or not raw:
+        cache_analysis(db, article_id, "concepts", "[]", tokens_used=tokens)
+        return JSONResponse({"concepts": [], "new": False})
+
+    terms = [t.strip() for t in raw.split(",") if t.strip()]
+    new_terms = []
+    for term in terms:
+        cid = get_or_create_concept(db, term, commit=False)
+        link_article_concept(db, article_id, cid, commit=False)
+        new_terms.append(term)
+    db.commit()
+
+    concepts_json = json.dumps(new_terms)
+    cache_analysis(db, article_id, "concepts", concepts_json, tokens_used=tokens)
+
+    return JSONResponse({"concepts": new_terms, "new": True})
 
 
 @router.post("/api/feedback/{article_id}")
