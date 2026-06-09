@@ -52,10 +52,9 @@ def dedup_articles(db_conn, articles: list) -> list:
 
 # Stage 3: Rank
 def rank_articles(db_conn, articles: list, cfg) -> list:
-    """Score articles. Placeholder until Task 5 implements pipeline/ranking.py."""
-    for art in articles:
-        art["score"] = 0.5
-    return articles
+    """Score articles using dual-phase strategy."""
+    from pipeline.ranking import score_articles
+    return score_articles(db_conn, articles, cfg)
 
 
 # Stage 4: Cluster
