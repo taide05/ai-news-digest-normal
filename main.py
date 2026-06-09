@@ -39,19 +39,7 @@ def start_server(db_conn, ai_client, cfg, port: int):
 
 async def run_collection_pipeline(db_conn, ai_client, cfg):
     import orchestrator as orch
-    count = await orch.run_full_pipeline(db_conn, ai_client, cfg)
-
-    # Weekly review auto-push on Mondays (after pipeline completes)
-    if datetime.now().weekday() == 0:
-        try:
-            import orchestrator as orch
-            result = orch.generate_weekly_review(db_conn, ai_client, cfg)
-            if result and result.get("status") == "ok":
-                await orch.push_weekly_review(db_conn, cfg)
-        except Exception as e:
-            logger.error(f"Weekly review error: {e}")
-
-    return count
+    return await orch.run_full_pipeline(db_conn, ai_client, cfg)
 
 
 def main():
@@ -93,11 +81,16 @@ def main():
     server_thread.start()
     time.sleep(1)
 
-    try:
-        count = asyncio.run(run_collection_pipeline(db_conn, ai_client, cfg))
+    import orchestrator as orch
+    from scheduler import start_scheduler, stop_scheduler
+
+    # Start scheduler (handles both scheduled and startup collection)
+    if cfg.scheduler.enabled:
+        start_scheduler(db_conn, cfg, orch)
+    else:
+        # Fallback: run pipeline once directly (backward compat)
+        count = asyncio.run(orch.run_full_pipeline(db_conn, ai_client, cfg))
         logger.info(f"Collection complete: {count} new articles")
-    except Exception as e:
-        logger.error(f"Collection pipeline error: {e}")
 
     webbrowser.open(f"http://127.0.0.1:{port}")
 
@@ -106,6 +99,8 @@ def main():
             server_thread.join(1)
     except KeyboardInterrupt:
         logger.info("Shutting down...")
+        if cfg.scheduler.enabled:
+            stop_scheduler()
 
     db_conn.close()
 
