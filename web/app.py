@@ -2,15 +2,13 @@ import logging
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from .limiter import limiter
 from .globals import set_globals, get_db, get_ai, get_config
-from .routes import home, reader, search, concepts, review, sources, export
+from .routes import home, reader, search, concepts, review, sources, export, api
 
 logger = logging.getLogger(__name__)
-
-limiter = Limiter(key_func=get_remote_address)
 
 
 def create_app() -> FastAPI:
@@ -29,6 +27,7 @@ def create_app() -> FastAPI:
     app_.include_router(review.router)
     app_.include_router(sources.router)
     app_.include_router(export.router)
+    app_.include_router(api.router)
 
     @app_.get("/api/health")
     async def health():

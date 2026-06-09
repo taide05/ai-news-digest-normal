@@ -34,12 +34,17 @@ def insert_article(conn: sqlite3.Connection, source_id: str, url: str, title: st
         return None
 
 
+_ARTICLE_COLS = None
+
+
 def get_article(conn: sqlite3.Connection, article_id: str) -> dict | None:
+    global _ARTICLE_COLS
     row = conn.execute("SELECT * FROM articles WHERE id = ?", (article_id,)).fetchone()
     if row is None:
         return None
-    cols = [c[1] for c in conn.execute("PRAGMA table_info(articles)")]
-    return dict(zip(cols, row))
+    if _ARTICLE_COLS is None:
+        _ARTICLE_COLS = [c[1] for c in conn.execute("PRAGMA table_info(articles)")]
+    return dict(zip(_ARTICLE_COLS, row))
 
 
 def set_full_text(conn: sqlite3.Connection, article_id: str, full_text: str,
@@ -119,8 +124,11 @@ def get_cached_analysis(conn: sqlite3.Connection, article_id: str, analysis_type
     return row[0] if row else None
 
 
-def get_concepts_list(conn: sqlite3.Connection) -> list[dict]:
-    rows = conn.execute("SELECT term, definition, query_count FROM concepts ORDER BY query_count DESC").fetchall()
+def get_concepts_list(conn: sqlite3.Connection, limit: int = 30) -> list[dict]:
+    rows = conn.execute(
+        "SELECT term, definition, query_count FROM concepts ORDER BY query_count DESC LIMIT ?",
+        (limit,)
+    ).fetchall()
     return [{"term": r[0], "definition": r[1], "query_count": r[2]} for r in rows]
 
 
@@ -198,11 +206,12 @@ def cache_cross_analysis(conn, cluster_id: str, analysis_type: str, content: str
                          article_ids: list[str], model: str = "deepseek-chat",
                          tokens_used: int = 0, commit: bool = True):
     ids_json = json.dumps(article_ids)
+    safe_content = content[:10000]
     try:
         conn.execute(
             "INSERT INTO cross_analysis_cache (cluster_id, analysis_type, content, article_ids, model, tokens_used) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            (cluster_id, analysis_type, content, ids_json, model, tokens_used)
+            (cluster_id, analysis_type, safe_content, ids_json, model, tokens_used)
         )
         if commit:
             conn.commit()
@@ -210,7 +219,7 @@ def cache_cross_analysis(conn, cluster_id: str, analysis_type: str, content: str
         conn.execute(
             "UPDATE cross_analysis_cache SET content = ?, tokens_used = ? "
             "WHERE cluster_id = ? AND analysis_type = ?",
-            (content, tokens_used, cluster_id, analysis_type)
+            (safe_content, tokens_used, cluster_id, analysis_type)
         )
         if commit:
             conn.commit()

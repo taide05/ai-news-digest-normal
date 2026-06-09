@@ -127,6 +127,7 @@ CREATE INDEX IF NOT EXISTS idx_articles_source ON articles(source_id);
 CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published_at);
 CREATE INDEX IF NOT EXISTS idx_articles_url ON articles(url);
 CREATE INDEX IF NOT EXISTS idx_reads_article ON read_records(article_id);
+CREATE INDEX IF NOT EXISTS idx_reads_opened ON read_records(opened_at);
 CREATE INDEX IF NOT EXISTS idx_concepts_term ON concepts(term);
 CREATE INDEX IF NOT EXISTS idx_analysis_article ON analysis_cache(article_id);
 CREATE INDEX IF NOT EXISTS idx_cluster_articles_article ON cluster_articles(article_id);

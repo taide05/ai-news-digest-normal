@@ -46,7 +46,17 @@ def test_cross_compare_insufficient_articles(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "error"
-    assert "3" in data["message"]
+    # Nonexistent cluster → "话题不存在"; 1-2 articles → mentions "3"
+    assert ("3" in data["message"] or "不存在" in data["message"])
+
+
+def test_cross_compare_invalid_cluster_id(client):
+    long_id = "x" * 200
+    resp = client.post(f"/api/cross-compare/{long_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "error"
+    assert "无效" in data["message"]
 
 
 def test_cross_compare_cached_response(client):

@@ -1,8 +1,9 @@
+import asyncio
 import json
 import logging
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import StreamingResponse, JSONResponse
-from web.app import limiter
+from web.limiter import limiter
 from web.globals import get_db, get_ai, get_config
 from db.models import (
     get_article, set_full_text, get_cached_analysis, cache_analysis,
@@ -13,12 +14,20 @@ from db.models import (
 from ai.analysis import (
     build_core_insight_prompt, build_what_it_means_prompt,
     build_translation_prompt, build_concept_lookup_prompt,
-    build_cross_comparison_prompt,
+    build_cross_comparison_prompt, _EXTRACTION_ERRORS,
 )
 from pipeline.extractor import extract_full_text
 
 logger = logging.getLogger("api")
 router = APIRouter()
+
+# Per-cluster lock to prevent duplicate LLM calls (TOCTOU guard)
+_cluster_locks: dict[str, asyncio.Lock] = {}
+
+# Cache for user topics (invalidated on "interested" feedback)
+_user_topics_cache: list[str] | None = None
+
+_EXTRACTION_ERROR_SET = set(_EXTRACTION_ERRORS)
 
 
 # ── source candidate APIs ───────────────────────────────────────────
@@ -54,12 +63,18 @@ async def reject_source_candidate(candidate_id: int, request: Request = None):
 
 # ── SSE helper ──────────────────────────────────────────────────────
 
+def _safe_sse_chunk(chunk: str) -> str:
+    """Encode chunk as SSE-safe JSON, replacing malformed UTF-8 surrogates."""
+    sanitized = chunk.encode("utf-8", errors="replace").decode("utf-8")
+    return json.dumps({"chunk": sanitized})
+
+
 async def _sse_stream(ai, system_prompt: str, user_prompt: str, max_tokens: int,
                       db, article_id: str, analysis_type: str):
     full_response = ""
     for chunk in ai.chat_stream(system_prompt, user_prompt, max_tokens=max_tokens):
         full_response += chunk
-        yield f"data: {json.dumps({'chunk': chunk})}\n\n"
+        yield f"data: {_safe_sse_chunk(chunk)}\n\n"
     try:
         cache_analysis(db, article_id, analysis_type, full_response)
     except Exception as e:
@@ -69,6 +84,9 @@ async def _sse_stream(ai, system_prompt: str, user_prompt: str, max_tokens: int,
 
 def _get_user_topics(db) -> list[str]:
     """Extract user interest topics from read_records for personalization."""
+    global _user_topics_cache
+    if _user_topics_cache is not None:
+        return _user_topics_cache
     rows = db.execute(
         "SELECT DISTINCT topics FROM read_records WHERE topics != '' AND feedback = 'interested'"
     ).fetchall()
@@ -78,7 +96,8 @@ def _get_user_topics(db) -> list[str]:
             topic = topic.strip()
             if topic and topic not in topics:
                 topics.append(topic)
-    return topics[:10]
+    _user_topics_cache = topics[:10]
+    return _user_topics_cache
 
 
 def _get_recent_read_titles(db, limit: int = 10) -> list[str]:
@@ -105,9 +124,19 @@ async def analyze(article_id: str, type: str = Query(...), request: Request = No
         return StreamingResponse(iter(["文章不存在"]), media_type="text/event-stream")
 
     full_text = article.get("full_text") or article.get("content") or ""
-    if not full_text or full_text.startswith("["):
-        full_text = await extract_full_text(article["url"])
-        set_full_text(db, article_id, full_text)
+    if not full_text or full_text in _EXTRACTION_ERROR_SET:
+        extracted = await extract_full_text(article["url"])
+        if extracted not in _EXTRACTION_ERROR_SET:
+            full_text = extracted
+            try:
+                set_full_text(db, article_id, full_text)
+            except Exception as e:
+                logger.warning("Failed to save full_text for article %s: %s", article_id, e)
+        elif not full_text:
+            full_text = extracted
+
+    if full_text in _EXTRACTION_ERROR_SET:
+        return StreamingResponse(iter([full_text]), media_type="text/event-stream")
 
     cached = get_cached_analysis(db, article_id, type)
     if cached:
@@ -148,9 +177,19 @@ async def translate(article_id: str, request: Request = None):
         return StreamingResponse(iter(["文章不存在"]), media_type="text/event-stream")
 
     full_text = article.get("full_text") or article.get("content") or ""
-    if not full_text or full_text.startswith("["):
-        full_text = await extract_full_text(article["url"])
-        set_full_text(db, article_id, full_text)
+    if not full_text or full_text in _EXTRACTION_ERROR_SET:
+        extracted = await extract_full_text(article["url"])
+        if extracted not in _EXTRACTION_ERROR_SET:
+            full_text = extracted
+            try:
+                set_full_text(db, article_id, full_text)
+            except Exception as e:
+                logger.warning("Failed to save full_text for article %s: %s", article_id, e)
+        elif not full_text:
+            full_text = extracted
+
+    if full_text in _EXTRACTION_ERROR_SET:
+        return StreamingResponse(iter([full_text]), media_type="text/event-stream")
 
     cached = get_cached_analysis(db, article_id, "translation")
     if cached:
@@ -192,13 +231,15 @@ async def concept_lookup(request: Request):
 @router.post("/api/feedback/{article_id}")
 @limiter.limit("30/minute")
 async def feedback(article_id: str, feedback: str = Query(...), request: Request = None):
+    global _user_topics_cache
     db = get_db()
     if db is None:
         return JSONResponse({"status": "error"})
-    set_feedback(db, article_id, feedback)
+    set_feedback(db, article_id, feedback, commit=False)
 
     # Auto-extract topics from article on positive feedback
     if feedback == "interested":
+        _user_topics_cache = None  # invalidate cache
         try:
             article = get_article(db, article_id)
             if article:
@@ -215,9 +256,9 @@ async def feedback(article_id: str, feedback: str = Query(...), request: Request
                             "AND id = (SELECT MAX(id) FROM read_records WHERE article_id = ?)",
                             (topics, article_id, article_id)
                         )
-                        db.commit()
         except Exception:
             pass  # best-effort topic extraction
+    db.commit()
 
     return JSONResponse({"status": "ok"})
 
@@ -243,46 +284,69 @@ async def generate_review(request: Request = None):
 @router.post("/api/cross-compare/{cluster_id}")
 @limiter.limit("5/minute")
 async def cross_compare(cluster_id: str, request: Request = None):
+    if not cluster_id or len(cluster_id) > 128:
+        return JSONResponse({"status": "error", "message": "无效的 cluster_id"})
+
     db = get_db()
     if db is None:
         return JSONResponse({"status": "error", "message": "数据库未配置"})
 
-    # Serve from cache without needing AI
     cached = get_cached_cross_analysis(db, cluster_id, "cross_comparison")
     if cached:
         return JSONResponse({"status": "ok", "content": cached, "cached": True})
 
-    arts = db.execute(
-        "SELECT a.id, a.title, a.source_id, a.url, "
-        "COALESCE(ac.content, '') as insight "
-        "FROM cluster_articles ca "
-        "JOIN articles a ON ca.article_id = a.id "
-        "LEFT JOIN analysis_cache ac ON a.id = ac.article_id AND ac.analysis_type = 'core_insight' "
-        "WHERE ca.cluster_id = ?",
-        (cluster_id,)
-    ).fetchall()
+    # TOCTOU guard: serialize requests for the same cluster
+    lock = _cluster_locks.setdefault(cluster_id, asyncio.Lock())
+    async with lock:
+        # Double-check cache inside lock
+        cached = get_cached_cross_analysis(db, cluster_id, "cross_comparison")
+        if cached:
+            return JSONResponse({"status": "ok", "content": cached, "cached": True})
 
-    if len(arts) < 3:
-        return JSONResponse({"status": "error", "message": "至少需要 3 篇文章才能对比"})
+        try:
+            arts = db.execute(
+                "SELECT a.id, a.title, a.source_id, a.url, "
+                "COALESCE(ac.content, '') as insight "
+                "FROM cluster_articles ca "
+                "JOIN articles a ON ca.article_id = a.id "
+                "LEFT JOIN analysis_cache ac ON a.id = ac.article_id AND ac.analysis_type = 'core_insight' "
+                "WHERE ca.cluster_id = ?",
+                (cluster_id,)
+            ).fetchall()
+        except Exception as e:
+            logger.warning("DB read error in cross_compare for cluster %s: %s", cluster_id, e)
+            return JSONResponse({"status": "error", "message": "数据查询失败"})
 
-    ai = get_ai()
-    if ai is None:
-        return JSONResponse({"status": "error", "message": "AI 服务未配置"})
+        if len(arts) == 0:
+            return JSONResponse({"status": "error", "message": "话题不存在"})
+        if len(arts) < 3:
+            return JSONResponse({"status": "error", "message": f"本话题仅有 {len(arts)} 篇文章，至少需要 3 篇"})
 
-    cluster_articles = [
-        {"title": r[1], "source_id": r[2], "url": r[3], "insight": r[4]}
-        for r in arts
-    ]
+        ai = get_ai()
+        if ai is None:
+            return JSONResponse({"status": "error", "message": "AI 服务未配置"})
 
-    system, user = build_cross_comparison_prompt(cluster_articles)
-    content, tokens = ai.chat(system, user, max_tokens=1024)
+        cluster_articles = [
+            {"title": r[1], "source_id": r[2], "url": r[3], "insight": r[4]}
+            for r in arts
+        ]
 
-    article_ids = [r[0] for r in arts]
-    cache_cross_analysis(db, cluster_id, "cross_comparison", content, article_ids,
-                         tokens_used=tokens)
+        system, user = build_cross_comparison_prompt(cluster_articles)
+        try:
+            content, tokens = ai.chat(system, user, max_tokens=1024)
+        except Exception as e:
+            logger.warning("AI chat error in cross_compare for cluster %s: %s", cluster_id, e)
+            return JSONResponse({"status": "error", "message": "AI 分析失败，请稍后重试"})
 
-    return JSONResponse({"status": "ok", "content": content, "cached": False,
-                         "article_count": len(arts)})
+        article_ids = [r[0] for r in arts]
+        try:
+            cache_cross_analysis(db, cluster_id, "cross_comparison",
+                                 content[:10000], article_ids, tokens_used=tokens)
+        except Exception as e:
+            logger.warning("Failed to cache cross_analysis for cluster %s: %s", cluster_id, e)
+
+        return JSONResponse({"status": "ok", "content": content, "cached": False,
+                             "article_count": len(arts)})
 
 
 @router.post("/api/collect")
