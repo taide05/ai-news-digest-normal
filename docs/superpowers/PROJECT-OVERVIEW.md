@@ -184,3 +184,39 @@ MVP:基础链路    增强:质量+管理   扩展:触达+安全   优化:性能+
 | **v1.0 规划** | Codex 审阅交接准备中 |
 
 **现在要做的事:** v1.0 — 最终 polish + Codex 审阅交接
+
+---
+
+## 九、开发铁律（2026-06-09 回顾总结）
+
+从 8 个版本（v0.1→v0.8）的开发中提炼出的强制性规则。每一条都来自实际踩过的坑。
+
+### 会话恢复
+
+**R1: 恢复先验收。** 新会话恢复时，第一步是读 PROJECT-OVERVIEW 了解规则，第二步是阶段 A（验收上一版本）。没有 Phase A 不得进入开发。即使 Cycle Report 存在，仍需验证测试数、commit 数、覆盖率与 report 一致。
+
+**R2: 用 PROJECT-OVERVIEW 而不是 Report 恢复。** Report 只说当前版本做了什么。PROJECT-OVERVIEW 包含完整的循环框架、规则、约束。恢复时应读两者，但 PROJECT-OVERVIEW 优先。
+
+### 实现约束
+
+**R3: htmx endpoint 返回 HTML，不是 JSON。** 任何被 `hx-get`/`hx-post`/`hx-trigger` 消费的 endpoint，必须返回 `HTMLResponse`，不是 `JSONResponse`。JSON 在浏览器里显示为乱码。此规则来自 v0.7 两次同样的 bug（concept extraction + recommendations）。
+
+**R4: 替换函数前 grep 所有调用方。** 修改一个被多处调用的函数的签名、行为、或存在性之前，必须 `grep` 整个代码库找到所有引用。替换后 grep 确认旧函数名已无引用。v0.7 的 `get_recommendations_gap → get_recommendations_cluster` 差点漏了 weekly review 里的调用。
+
+### 修复与审计
+
+**R5: "修了"必须明确是什么修了。** plan 修复（改 .md 文件）≠ code 修复（改 .py 文件）。审计发现的问题在讨论结束后，必须逐项确认是 plan fix 还是 code fix。code fix 必须有对应的 commit。
+
+**R6: code review 包含同 cycle 前序 task 的交叉校验。** 检查新代码是否复用了本 cycle 前面 task 刚提取的 helper/函数。v0.8 scheduler 重复了 `_build_nodes_and_edges` 就是漏了交叉校验。
+
+### 审查门禁
+
+**R7: task 间的审查不可跳过。** subagent-driven 流程中，spec review + code quality review 必须在下一个 task 开始前完成。发现的问题必须在同一 task 内修复。不得攒到 Phase T 一起修。
+
+**R8: 发现的问题要么修，要么不修——不能"文档化"。** 加一条注释说明"这里是故意的"不是修复。如果问题不值得修，在 cycle report 的"已知问题"中明确记录。如果值得修，修掉。
+
+### 流程顺序
+
+**R9: 先 scoping 再工具。** 在需求范围确定之前，不讨论可视化面板、技术选型、具体实现。先定"做什么"，再定"怎么做"，最后才到"用什么工具"。
+
+**R10: Phase T 是强制门禁，不是可选项。** 任何版本在阶段 D 完成后，必须执行完整的 T1-T8。T 不过，不准进 E。v0.6 恢复时跳过了 Phase T 直接开发，导致 25 个边界/性能/安全问题在后续才被发现。
