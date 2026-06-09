@@ -1,21 +1,18 @@
 import json
 import logging
-from datetime import datetime, timedelta
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import StreamingResponse, JSONResponse
 from web.app import limiter
 from web.globals import get_db, get_ai, get_config
 from db.models import (
     get_article, set_full_text, get_cached_analysis, cache_analysis,
-    record_read, set_feedback, get_or_create_concept, link_article_concept,
-    get_concepts_list, get_weekly_review, save_weekly_review,
+    set_feedback, get_or_create_concept, link_article_concept,
+    get_concepts_list,
 )
-from db.queries import get_read_articles_with_insights, get_read_article_ids_since, get_feedback_articles
 from ai.analysis import (
     build_core_insight_prompt, build_what_it_means_prompt,
-    build_translation_prompt, build_concept_lookup_prompt, build_review_prompt,
+    build_translation_prompt, build_concept_lookup_prompt,
 )
-from utils import get_week_bounds
 from pipeline.extractor import extract_full_text
 
 logger = logging.getLogger("api")
@@ -146,26 +143,14 @@ async def generate_review(request: Request = None):
     if db is None or ai is None:
         return JSONResponse({"status": "error", "message": "AI 服务未配置"})
 
-    week_start, week_end = get_week_bounds()
-    existing = get_weekly_review(db, week_start)
-    if existing:
-        return JSONResponse({"status": "ok", "message": "本周周报已存在", "review": existing})
-
-    start_dt = datetime.now() - timedelta(days=7)
-    since = start_dt.strftime("%Y-%m-%d")
-    articles = get_read_articles_with_insights(db, since)
-    concepts = [c["term"] for c in get_concepts_list(db)]
-
-    interested = get_feedback_articles(db, since, "interested")
-    not_interested = get_feedback_articles(db, since, "not_interested")
-
-    system, user = build_review_prompt(articles, concepts, interested, not_interested)
-    content, tokens = ai.chat(system, user, max_tokens=2048)
-
-    article_ids = get_read_article_ids_since(db, since)
-
-    save_weekly_review(db, week_start, week_end, content, article_ids)
-    return JSONResponse({"status": "ok", "content": content})
+    import orchestrator as orch
+    cfg = get_config()
+    result = orch.generate_weekly_review(db, ai, cfg)
+    if result is None:
+        return JSONResponse({"status": "error", "message": "没有足够的阅读数据生成周报"})
+    if result.get("status") == "exists":
+        return JSONResponse({"status": "ok", "message": "本周周报已存在", "review": result["review"]})
+    return JSONResponse({"status": "ok", "content": result["content"]})
 
 
 @router.post("/api/collect")
