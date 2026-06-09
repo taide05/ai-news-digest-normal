@@ -45,6 +45,7 @@ WECOM_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=你的key
     <div class="article-item">
         <a href="/reader/{{ article.id }}" class="article-link">{{ article.title }}</a>
         <span class="article-meta">
+            <span class="priority-dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ article.priority_color }};margin-right:4px;" title="优先级: {{ '%.1f'|format(article.priority_weight) }}"></span>
             {{ article.source_id }} · {{ article.language | upper }}
             {% if article.published_at %} · {{ article.published_at[:10] }}{% endif %}
         </span>
@@ -57,6 +58,7 @@ WECOM_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=你的key
 
 <nav class="bottom-nav">
     <a href="/sources">信息源</a>
+    <a href="/sources/candidates">候选源</a>
     <a href="/search">搜索</a>
     <a href="/concepts">概念词典</a>
     <a href="/review">周报</a>

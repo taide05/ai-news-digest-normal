@@ -7,7 +7,7 @@ from web.globals import get_db, get_ai, get_config
 from db.models import (
     get_article, set_full_text, get_cached_analysis, cache_analysis,
     set_feedback, get_or_create_concept, link_article_concept,
-    get_concepts_list,
+    get_concepts_list, get_pending_candidates, verify_candidate, reject_candidate,
 )
 from ai.analysis import (
     build_core_insight_prompt, build_what_it_means_prompt,
@@ -18,6 +18,39 @@ from pipeline.extractor import extract_full_text
 logger = logging.getLogger("api")
 router = APIRouter()
 
+
+# ── source candidate APIs ───────────────────────────────────────────
+
+@router.get("/api/source-candidates")
+async def list_source_candidates(request: Request = None):
+    db = get_db()
+    if db is None:
+        return JSONResponse({"candidates": []})
+    candidates = get_pending_candidates(db)
+    return JSONResponse({"candidates": candidates})
+
+
+@router.post("/api/source-candidates/{candidate_id}/verify")
+@limiter.limit("10/minute")
+async def verify_source_candidate(candidate_id: int, request: Request = None):
+    db = get_db()
+    if db is None:
+        return JSONResponse({"status": "error", "message": "DB unavailable"})
+    verify_candidate(db, candidate_id)
+    return JSONResponse({"status": "ok"})
+
+
+@router.post("/api/source-candidates/{candidate_id}/reject")
+@limiter.limit("10/minute")
+async def reject_source_candidate(candidate_id: int, request: Request = None):
+    db = get_db()
+    if db is None:
+        return JSONResponse({"status": "error", "message": "DB unavailable"})
+    reject_candidate(db, candidate_id)
+    return JSONResponse({"status": "ok"})
+
+
+# ── SSE helper ──────────────────────────────────────────────────────
 
 async def _sse_stream(ai, system_prompt: str, user_prompt: str, max_tokens: int,
                       db, article_id: str, analysis_type: str):
@@ -31,6 +64,8 @@ async def _sse_stream(ai, system_prompt: str, user_prompt: str, max_tokens: int,
         logger.warning("Failed to cache analysis for article %s type %s: %s", article_id, analysis_type, e)
     yield "data: [DONE]\n\n"
 
+
+# ── analyze / translate / concept-lookup / feedback / review ────────
 
 @router.get("/api/analyze/{article_id}")
 @limiter.limit("10/minute")
@@ -132,6 +167,29 @@ async def feedback(article_id: str, feedback: str = Query(...), request: Request
     if db is None:
         return JSONResponse({"status": "error"})
     set_feedback(db, article_id, feedback)
+
+    # Auto-extract topics from article on positive feedback
+    if feedback == "interested":
+        try:
+            article = get_article(db, article_id)
+            if article:
+                ai = get_ai()
+                if ai:
+                    title = article.get("title", "")
+                    if title:
+                        sys_p = "用一个逗号分隔的关键词列表（不超过5个）描述这篇文章的主题领域。只输出关键词。"
+                        usr_p = f"标题：{title}"
+                        topics, _ = ai.chat(sys_p, usr_p, max_tokens=30)
+                        topics = topics.strip().strip('"').strip("'")
+                        db.execute(
+                            "UPDATE read_records SET topics = ? WHERE article_id = ? "
+                            "AND id = (SELECT MAX(id) FROM read_records WHERE article_id = ?)",
+                            (topics, article_id, article_id)
+                        )
+                        db.commit()
+        except Exception:
+            pass  # best-effort topic extraction
+
     return JSONResponse({"status": "ok"})
 
 

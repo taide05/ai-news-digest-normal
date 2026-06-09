@@ -8,6 +8,14 @@ from web.templates import templates
 
 router = APIRouter()
 
+SOURCE_PRIORITY = {
+    "arxiv-cs-ai": ("#1b5e20", 0.9),
+    "hackernews": ("#e65100", 0.7),
+    "github-trending": ("#0d47a1", 0.8),
+    "jiqizhixin": ("#4a148c", 0.6),
+    "reddit-ml": ("#b71c1c", 0.5),
+}
+
 
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -27,6 +35,14 @@ async def home(request: Request):
 
     today = datetime.now().strftime("%Y-%m-%d")
     clusters = get_clusters_for_date(db, today)
+
+    # Compute priority display info for each article
+    for cluster in clusters:
+        for article in cluster["articles"]:
+            src = article.get("source_id", "")
+            color, weight = SOURCE_PRIORITY.get(src, ("#607d8b", 0.3))
+            article["priority_color"] = color
+            article["priority_weight"] = weight
 
     return templates.TemplateResponse(request, "home.html", {
         "clusters": clusters,

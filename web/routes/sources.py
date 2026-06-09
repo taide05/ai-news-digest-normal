@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from web.globals import get_db
-from db.models import get_all_sources, add_source, remove_source, toggle_source
+from db.models import get_all_sources, add_source, remove_source, toggle_source, get_pending_candidates
 from web.templates import templates
 
 router = APIRouter()
@@ -65,3 +65,12 @@ async def api_toggle_source(sid: str, request: Request):
         data = {}
     toggle_source(db, sid, data.get("enabled", True))
     return JSONResponse({"status": "ok"})
+
+
+@router.get("/sources/candidates", response_class=HTMLResponse)
+async def source_candidates_page(request: Request):
+    db = get_db()
+    candidates = get_pending_candidates(db) if db else []
+    return templates.TemplateResponse(request, "source_candidates.html", {
+        "candidates": candidates,
+    })

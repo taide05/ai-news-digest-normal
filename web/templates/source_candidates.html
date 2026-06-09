@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}候选信息源 - AI 资讯管家{% endblock %}
+{% block content %}
+<h2>🔍 候选信息源</h2>
+<p class="subtitle">AI 自动发现的潜在优质信息源，审核后加入采集列表</p>
+
+{% if candidates %}
+<table style="width:100%; border-collapse: collapse; margin-top: 16px;">
+  <thead>
+    <tr style="text-align: left; border-bottom: 2px solid var(--border);">
+      <th style="padding: 10px;">来源</th>
+      <th style="padding: 10px;">描述</th>
+      <th style="padding: 10px;">评分</th>
+      <th style="padding: 10px;">操作</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in candidates %}
+    <tr style="border-bottom: 1px solid var(--border);" id="candidate-{{ c.id }}">
+      <td style="padding: 10px;">
+        <strong>{{ c.title or '未知' }}</strong>
+        <br><small style="color: #888;">{{ c.url }}</small>
+      </td>
+      <td style="padding: 10px;">{{ c.description or '-' }}</td>
+      <td style="padding: 10px;">{{ "%.2f"|format(c.relevance_score) }}</td>
+      <td style="padding: 10px;">
+        <button hx-post="/api/source-candidates/{{ c.id }}/verify"
+                hx-swap="outerHTML" hx-target="#candidate-{{ c.id }}"
+                style="background: #4caf50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-right: 6px;">
+          确认
+        </button>
+        <button hx-post="/api/source-candidates/{{ c.id }}/reject"
+                hx-swap="outerHTML" hx-target="#candidate-{{ c.id }}"
+                style="background: #f44336; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+          拒绝
+        </button>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p style="color: #888; margin-top: 24px;">暂无候选信息源。运行采集后，AI 会自动从文章中发掘新源。</p>
+{% endif %}
+
+<p style="margin-top: 20px;"><a href="/sources">← 返回源管理</a></p>
+{% endblock %}

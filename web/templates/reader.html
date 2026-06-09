@@ -2,9 +2,9 @@
 {% block content %}
 <div class="reader-header">
     <a href="/" class="back-link">&larr; 返回首页</a>
-    <div class="feedback-buttons">
-        <button hx-post="/api/feedback/{{ article.id }}?feedback=interested" hx-swap="none">感兴趣</button>
-        <button hx-post="/api/feedback/{{ article.id }}?feedback=not_interested" hx-swap="none">不感兴趣</button>
+    <div class="feedback-buttons" style="display:flex;gap:8px;">
+        <button hx-post="/api/feedback/{{ article.id }}?feedback=interested" hx-swap="none" style="background:#4caf50;color:white;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;">👍 感兴趣</button>
+        <button hx-post="/api/feedback/{{ article.id }}?feedback=not_interested" hx-swap="none" style="background:#f44336;color:white;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;">👎 不感兴趣</button>
     </div>
 </div>
 
@@ -70,12 +70,28 @@ function lookupConcept() {
     });
 }
 </script>
+
+<div class="feedback-bar" style="margin: 24px 0; padding: 16px; background: var(--surface); border-radius: 8px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+  <span style="font-weight: 500;">这篇文章对你有帮助吗？</span>
+  <button hx-post="/api/feedback/{{ article.id }}?feedback=interested"
+          hx-swap="outerHTML"
+          style="background: #4caf50; color: white; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 14px;">
+    👍 感兴趣
+  </button>
+  <button hx-post="/api/feedback/{{ article.id }}?feedback=not_interested"
+          hx-swap="outerHTML"
+          style="background: #f44336; color: white; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 14px;">
+    👎 不感兴趣
+  </button>
+</div>
+
 <div class="export-bar" style="margin:16px 0;">
     <a href="/api/export/article/{{ article.id }}" class="btn">导出 Markdown</a>
 </div>
 <nav class="bottom-nav">
     <a href="/">首页</a>
     <a href="/sources">信息源</a>
+    <a href="/sources/candidates">候选源</a>
     <a href="/search">搜索</a>
     <a href="/concepts">概念词典</a>
     <a href="/review">周报</a>
