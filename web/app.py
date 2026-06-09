@@ -1,32 +1,10 @@
 import logging
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from .routes import home, reader, search, concepts, review
+from .globals import set_globals, get_db, get_ai, get_config
+from .routes import home, reader, search, concepts, review, sources, export
 
 logger = logging.getLogger(__name__)
-
-_db_conn = None
-_ai_client = None
-_config = None
-
-
-def get_db():
-    return _db_conn
-
-
-def get_ai():
-    return _ai_client
-
-
-def get_config():
-    return _config
-
-
-def set_globals(db_conn, ai_client, config):
-    global _db_conn, _ai_client, _config
-    _db_conn = db_conn
-    _ai_client = ai_client
-    _config = config
 
 
 def create_app() -> FastAPI:
@@ -41,6 +19,8 @@ def create_app() -> FastAPI:
     app_.include_router(search.router)
     app_.include_router(concepts.router)
     app_.include_router(review.router)
+    app_.include_router(sources.router)
+    app_.include_router(export.router)
 
     @app_.get("/api/health")
     async def health():

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from web.app import get_db
+from web.globals import get_db
 from db.models import get_article, record_read
 
 router = APIRouter()
@@ -16,4 +16,4 @@ async def reader(request: Request, article_id: str):
         return HTMLResponse("Article not found", status_code=404)
 
     record_read(db, article_id)
-    return templates.TemplateResponse("reader.html", {"request": request, "article": article})
+    return templates.TemplateResponse(request, "reader.html", {"article": article})

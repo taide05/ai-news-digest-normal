@@ -1,19 +1,23 @@
 import json
+import logging
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import StreamingResponse, JSONResponse
-from web.app import get_db, get_ai, get_config
+from web.globals import get_db, get_ai, get_config
 from db.models import (
     get_article, set_full_text, get_cached_analysis, cache_analysis,
     record_read, set_feedback, get_or_create_concept, link_article_concept,
     get_concepts_list, get_weekly_review, save_weekly_review,
 )
+from db.queries import get_read_articles_with_insights, get_read_article_ids_since, get_feedback_articles
 from ai.analysis import (
     build_core_insight_prompt, build_what_it_means_prompt,
     build_translation_prompt, build_concept_lookup_prompt, build_review_prompt,
 )
-from ai.review import get_week_bounds
+from utils import get_week_bounds
 from pipeline.extractor import extract_full_text
 
+logger = logging.getLogger("api")
 router = APIRouter()
 
 
@@ -25,8 +29,8 @@ async def _sse_stream(ai, system_prompt: str, user_prompt: str, max_tokens: int,
         yield f"data: {json.dumps({'chunk': chunk})}\n\n"
     try:
         cache_analysis(db, article_id, analysis_type, full_response)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to cache analysis for article %s type %s: %s", article_id, analysis_type, e)
     yield "data: [DONE]\n\n"
 
 
@@ -141,38 +145,18 @@ async def generate_review():
     if existing:
         return JSONResponse({"status": "ok", "message": "本周周报已存在", "review": existing})
 
-    from datetime import datetime, timedelta
-    end_dt = datetime.now()
-    start_dt = end_dt - timedelta(days=7)
-    rows = db.execute(
-        "SELECT a.title, ac.content as insight FROM read_records r "
-        "JOIN articles a ON r.article_id = a.id "
-        "LEFT JOIN analysis_cache ac ON a.id = ac.article_id AND ac.analysis_type = 'core_insight' "
-        "WHERE r.opened_at >= ?",
-        (start_dt.strftime("%Y-%m-%d"),)
-    ).fetchall()
-    articles = [{"title": r[0], "insight": r[1] or ""} for r in rows]
+    start_dt = datetime.now() - timedelta(days=7)
+    since = start_dt.strftime("%Y-%m-%d")
+    articles = get_read_articles_with_insights(db, since)
     concepts = [c["term"] for c in get_concepts_list(db)]
 
-    interested = [r[0] for r in db.execute(
-        "SELECT DISTINCT a.title FROM read_records r JOIN articles a ON r.article_id = a.id "
-        "WHERE r.feedback = 'interested' AND r.opened_at >= ?",
-        (start_dt.strftime("%Y-%m-%d"),)
-    ).fetchall()]
-
-    not_interested = [r[0] for r in db.execute(
-        "SELECT DISTINCT a.title FROM read_records r JOIN articles a ON r.article_id = a.id "
-        "WHERE r.feedback = 'not_interested' AND r.opened_at >= ?",
-        (start_dt.strftime("%Y-%m-%d"),)
-    ).fetchall()]
+    interested = get_feedback_articles(db, since, "interested")
+    not_interested = get_feedback_articles(db, since, "not_interested")
 
     system, user = build_review_prompt(articles, concepts, interested, not_interested)
     content, tokens = ai.chat(system, user, max_tokens=2048)
 
-    article_ids = [r[0] for r in db.execute(
-        "SELECT article_id FROM read_records WHERE opened_at >= ?",
-        (start_dt.strftime("%Y-%m-%d"),)
-    ).fetchall()]
+    article_ids = get_read_article_ids_since(db, since)
 
     save_weekly_review(db, week_start, week_end, content, article_ids)
     return JSONResponse({"status": "ok", "content": content})
@@ -180,7 +164,4 @@ async def generate_review():
 
 @router.post("/api/collect")
 async def trigger_collect():
-    import os
-    with open(".collect_trigger", "w") as f:
-        f.write("1")
-    return JSONResponse({"status": "started", "message": "采集已触发"})
+    return JSONResponse({"status": "unavailable", "message": "Collection is triggered automatically on startup; manual collection via API is not supported yet."})

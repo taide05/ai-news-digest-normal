@@ -1,3 +1,9 @@
+def build_cluster_label_prompt(titles: str) -> tuple[str, str]:
+    system = "你是一个信息分类助手。"
+    user = f"为以下一组相关文章生成一个简短的中文标签（不超过15个字）：\n\n{titles}\n\n标签："
+    return system, user
+
+
 def build_core_insight_prompt(full_text: str) -> tuple[str, str]:
     system = "你是一个专业的科技内容摘要助手。"
     user = f"用 2-3 句话概括下面这篇文章的核心内容。直接说重点，不要铺垫。\n\n文章：{full_text}"

@@ -15,7 +15,7 @@ class ArxivCollector(BaseCollector):
     rate_limit = 3.0
 
     def __init__(self):
-        self.endpoint = "http://export.arxiv.org/api/query"
+        self.endpoint = "https://export.arxiv.org/api/query"
         self.categories = ["cs.AI", "cs.CL", "cs.LG"]
         self.max_results = 50
 

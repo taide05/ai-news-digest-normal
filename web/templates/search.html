@@ -12,7 +12,7 @@
     <div class="search-result-item">
         <a href="/reader/{{ r.id }}">{{ r.title }}</a>
         <span class="article-meta">{{ r.source_id }} · {{ r.language | upper }}</span>
-        <p class="snippet">{{ r.snippet | safe }}</p>
+        <p class="snippet">{{ r.snippet | highlight }}</p>
     </div>
     {% endfor %}
 </div>

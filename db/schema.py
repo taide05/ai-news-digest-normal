@@ -2,6 +2,7 @@ import sqlite3
 
 SCHEMA_SQL = """
 PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS sources (
     id          TEXT PRIMARY KEY,
@@ -129,7 +130,7 @@ END;
 
 DEFAULT_SOURCES = [
     ("arxiv-cs-ai", "arXiv CS.AI/CL/LG", "api",
-     '{"endpoint": "http://export.arxiv.org/api/query", "categories": ["cs.AI","cs.CL","cs.LG"], "max_results": 50}'),
+     '{"endpoint": "https://export.arxiv.org/api/query", "categories": ["cs.AI","cs.CL","cs.LG"], "max_results": 50}'),
     ("hackernews", "Hacker News", "api",
      '{"endpoint": "https://hacker-news.firebaseio.com/v0", "ai_keywords": ["ai","llm","gpt","ml","machine learning","openai","deep learning","transformer","neural net","claude","gemini","llama","mistral"]}'),
     ("jiqizhixin", "机器之心", "rss",
@@ -137,13 +138,19 @@ DEFAULT_SOURCES = [
     ("github-trending", "GitHub Trending", "web",
      '{"url": "https://github.com/trending/python?since=daily"}'),
     ("reddit-ml", "Reddit r/MachineLearning", "rss",
-     '{"url": "https://www.reddit.com/r/MachineLearning/.rss"}'),
+     '{"url": "https://rsshub.app/reddit/r/MachineLearning"}'),
 ]
 
 
 def init_db(db_path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    conn.execute("PRAGMA busy_timeout = 5000")
     conn.executescript(SCHEMA_SQL)
+
+    try:
+        conn.execute("ALTER TABLE weekly_reviews ADD COLUMN review_pushed INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
 
     cur = conn.execute("SELECT COUNT(*) FROM sources")
     if cur.fetchone()[0] == 0:

@@ -21,7 +21,8 @@ def check_existing_server(port: int) -> bool:
 
 
 def start_server(db_conn, ai_client, cfg, port: int):
-    from web.app import create_app, set_globals
+    from web.app import create_app
+    from web.globals import set_globals
     import uvicorn
 
     set_globals(db_conn, ai_client, cfg)
@@ -40,9 +41,12 @@ async def run_collection_pipeline(db_conn, ai_client, cfg):
     from collectors.registry import get_all
     from pipeline.dedup import filter_duplicates_by_title
     from pipeline.cluster import cluster_articles, make_cluster_id, make_cluster_label
+    from ai.analysis import build_cluster_label_prompt
     from db.models import (
-        insert_article, has_digest_today, create_digest, mark_webhook_sent, cleanup_old_data
+        insert_article, has_digest_today, create_digest, mark_webhook_sent, cleanup_old_data,
+        get_weekly_review,
     )
+    from db.digest import insert_cluster, insert_cluster_article, mark_article_exploration
     from push import send_wecom_digest
 
     since = datetime.now() - timedelta(days=2)
@@ -70,7 +74,7 @@ async def run_collection_pipeline(db_conn, ai_client, cfg):
         if aid:
             new_articles.append({
                 "id": aid, "title": art.title, "summary": art.summary,
-                "source_id": art.source_id, "language": art.language,
+                "url": art.url, "source_id": art.source_id, "language": art.language,
                 "published_at": art.published_at,
             })
 
@@ -83,6 +87,7 @@ async def run_collection_pipeline(db_conn, ai_client, cfg):
 
     import random
     today_str = datetime.now().strftime("%Y-%m-%d")
+    ai_labels = {}
     for i, cluster in enumerate(clusters):
         label = make_cluster_label(cluster)
         cid = make_cluster_id(today_str, i)
@@ -90,22 +95,16 @@ async def run_collection_pipeline(db_conn, ai_client, cfg):
         if ai_client and cluster:
             try:
                 titles = "\n".join([a.get("title", "")[:80] for a in cluster[:5]])
-                sys_p = "你是一个信息分类助手。"
-                usr_p = f"为以下一组相关文章生成一个简短的中文标签（不超过15个字）：\n\n{titles}\n\n标签："
+                sys_p, usr_p = build_cluster_label_prompt(titles)
                 label, _ = ai_client.chat(sys_p, usr_p, max_tokens=30)
                 label = label.strip().strip('"').strip("'")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"AI label generation failed: {e}")
 
-        db_conn.execute(
-            "INSERT INTO clusters (id, label, digest_date) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET label = ?",
-            (cid, label, today_str, label)
-        )
+        ai_labels[i] = label
+        insert_cluster(db_conn, cid, label, today_str)
         for art in cluster:
-            db_conn.execute(
-                "INSERT OR IGNORE INTO cluster_articles (cluster_id, article_id) VALUES (?, ?)",
-                (cid, art["id"])
-            )
+            insert_cluster_article(db_conn, cid, art["id"])
     db_conn.commit()
 
     small_clusters = [c for c in clusters if len(c) <= 2]
@@ -117,10 +116,7 @@ async def run_collection_pipeline(db_conn, ai_client, cfg):
         random.shuffle(explore_articles)
         explore_articles = explore_articles[:explore_count]
         for art in explore_articles:
-            db_conn.execute(
-                "UPDATE articles SET summary = '[探索] ' || COALESCE(summary, '') WHERE id = ?",
-                (art["id"],)
-            )
+            mark_article_exploration(db_conn, art["id"])
         db_conn.commit()
 
     if not has_digest_today(db_conn):
@@ -130,12 +126,12 @@ async def run_collection_pipeline(db_conn, ai_client, cfg):
 
         cluster_data = []
         seen_ids = set()
-        for cluster in clusters:
+        for i, cluster in enumerate(clusters):
             arts = [a for a in cluster if a["id"] in all_ids and a["id"] not in seen_ids]
             if arts:
                 for a in arts:
                     seen_ids.add(a["id"])
-                cluster_data.append({"label": make_cluster_label(cluster), "articles": arts})
+                cluster_data.append({"label": ai_labels.get(i, make_cluster_label(cluster)), "articles": arts})
 
         success = await send_wecom_digest(
             cfg.wecom_webhook_url, today_str,
@@ -144,6 +140,25 @@ async def run_collection_pipeline(db_conn, ai_client, cfg):
         if success:
             mark_webhook_sent(db_conn)
             logger.info("WeChat push sent successfully")
+
+    # Weekly review auto-push on Mondays
+    if datetime.now().weekday() == 0:
+        from push import send_wecom_review
+        review_week_start = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+        review_week_end = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+        existing = get_weekly_review(db_conn, review_week_start)
+        if existing and not existing.get("review_pushed"):
+            success = await send_wecom_review(
+                cfg.wecom_webhook_url, review_week_start, review_week_end, existing["content"]
+            )
+            if success:
+                db_conn.execute(
+                    "UPDATE weekly_reviews SET review_pushed = 1 WHERE week_start = ?",
+                    (review_week_start,)
+                )
+                db_conn.commit()
+                logger.info("Weekly review pushed successfully")
 
     cleanup_old_data(db_conn, cfg.full_text_retention_days, cfg.analysis_cache_retention_days)
     return len(new_articles)
@@ -183,7 +198,7 @@ def main():
         logger.warning(".env 未找到或未配置 DEEPSEEK_API_KEY，AI 功能不可用")
 
     server_thread = threading.Thread(
-        target=start_server, args=(db_conn, ai_client, cfg, port), daemon=True
+        target=start_server, args=(db_conn, ai_client, cfg, port), daemon=False
     )
     server_thread.start()
     time.sleep(1)

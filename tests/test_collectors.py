@@ -15,3 +15,23 @@ def test_rss_collector_attributes():
     assert collector.name == "test"
     assert collector.language == "zh"
     assert collector.type == "rss"
+
+
+from collectors.hackernews import HackerNewsCollector
+
+
+class TestHackerNewsKeywordFilter:
+    def setup_method(self):
+        self.collector = HackerNewsCollector()
+
+    def test_ai_title_matches(self):
+        assert self.collector._is_ai_related("New LLM model released by OpenAI")
+        assert self.collector._is_ai_related("Deep learning advances in 2026")
+
+    def test_non_ai_title_rejected(self):
+        assert not self.collector._is_ai_related("New JavaScript framework released")
+        assert not self.collector._is_ai_related("")
+
+    def test_keyword_case_insensitive(self):
+        assert self.collector._is_ai_related("Building a RAG pipeline")
+        assert self.collector._is_ai_related("New rag techniques")

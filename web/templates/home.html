@@ -4,13 +4,34 @@
 
 {% if empty %}
 <div class="empty-state">
+{% if needs_config and not env_exists %}
+    <h2>欢迎使用 AI 资讯管家！</h2>
+    <p>看起来你还没有配置 API 密钥。</p>
+    <div class="setup-steps">
+        <h3>三步完成设置：</h3>
+        <ol>
+            <li>在项目目录 <code>D:\Projects\ai-news-digest</code> 中找到 <code>.env.example</code></li>
+            <li>将其重命名为 <code>.env</code>（去掉末尾的 .example）</li>
+            <li>用记事本打开 <code>.env</code>，填入你的 DeepSeek API Key 和 企业微信 Webhook URL</li>
+        </ol>
+        <p><strong>格式如下：</strong></p>
+        <pre><code>DEEPSEEK_API_KEY=sk-你的key
+WECOM_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=你的key</code></pre>
+    </div>
+    <p>配置完成后，双击桌面上的「AI资讯」快捷方式重启即可。</p>
+{% elif needs_config and env_exists %}
+    <h2>API 密钥未配置</h2>
+    <p><code>.env</code> 文件已存在，但 <code>DEEPSEEK_API_KEY</code> 尚未填写。</p>
+    <p>请用记事本打开 <code>D:\Projects\ai-news-digest\.env</code>，填入你的密钥后重启。</p>
+{% else %}
     <h2>欢迎！</h2>
     <p>还没有资讯数据。</p>
     <p>请双击桌面上的「AI资讯」快捷方式来采集第一期资讯。</p>
+{% endif %}
 </div>
 {% else %}
 <div class="digest-summary">
-    今日 {{ clusters|sum(attribute='articles')|map('length')|sum if clusters else 0 }} 篇文章，{{ clusters|length }} 个话题
+    今日 {{ clusters|map(attribute='articles')|map('length')|sum if clusters else 0 }} 篇文章，{{ clusters|length }} 个话题
 </div>
 
 <div class="clusters">

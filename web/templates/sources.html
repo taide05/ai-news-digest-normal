@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>信息源管理</h1>
+
+<div class="sources-toolbar">
+    <button class="btn" onclick="document.getElementById('add-form').style.display='block'">+ 添加源</button>
+</div>
+
+<div id="add-form" class="add-source-form" style="display:none">
+    <h3>添加新信息源</h3>
+    <input type="text" id="new-id" placeholder="ID (e.g. my-rss)">
+    <input type="text" id="new-name" placeholder="名称">
+    <select id="new-type">
+        <option value="rss">RSS</option>
+        <option value="api">API</option>
+        <option value="web">Web</option>
+    </select>
+    <input type="text" id="new-config" placeholder='Config JSON (e.g. {"url": "https://..."})'>
+    <button class="btn" onclick="addSource()">添加</button>
+    <button class="btn btn-secondary" onclick="document.getElementById('add-form').style.display='none'">取消</button>
+</div>
+
+<table class="sources-table">
+<thead><tr><th>ID</th><th>名称</th><th>类型</th><th>状态</th><th>操作</th></tr></thead>
+<tbody>
+{% for s in sources %}
+<tr>
+    <td>{{ s.id }}</td>
+    <td>{{ s.name }}</td>
+    <td>{{ s.type }}</td>
+    <td><input type="checkbox" {% if s.enabled %}checked{% endif %} onchange="toggleSource('{{ s.id }}', this.checked)"></td>
+    <td><button class="btn btn-danger btn-sm" onclick="removeSource('{{ s.id }}', this)">删除</button></td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+<nav class="bottom-nav">
+    <a href="/">首页</a> | <a href="/search">搜索</a> | <a href="/concepts">概念词典</a> | <a href="/review">周报</a>
+</nav>
+
+<script>
+async function addSource() {
+    const data = {
+        id: document.getElementById('new-id').value,
+        name: document.getElementById('new-name').value,
+        type: document.getElementById('new-type').value,
+        config: document.getElementById('new-config').value,
+    };
+    const resp = await fetch('/api/sources', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+    const result = await resp.json();
+    if (result.status === 'ok') location.reload();
+    else alert('添加失败: ' + (result.message || '未知错误'));
+}
+async function toggleSource(id, enabled) {
+    await fetch('/api/sources/' + id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled: enabled})});
+}
+async function removeSource(id, btn) {
+    if (!confirm('确定删除 ' + id + ' ?')) return;
+    await fetch('/api/sources/' + id, {method:'DELETE'});
+    btn.closest('tr').remove();
+}
+</script>
+{% endblock %}
