@@ -109,7 +109,8 @@ def get_all_sources(conn) -> list[dict]:
     rows = conn.execute(
         "SELECT id, name, type, config, enabled, fail_count, last_fetch FROM sources ORDER BY id"
     ).fetchall()
-    return [dict(r) for r in rows]
+    cols = ["id", "name", "type", "config", "enabled", "fail_count", "last_fetch"]
+    return [dict(zip(cols, r)) for r in rows]
 
 
 def add_source(conn, sid: str, name: str, stype: str, config: str) -> bool:

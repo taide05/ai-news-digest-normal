@@ -17,11 +17,30 @@ async def sources_page(request: Request):
 
 @router.post("/api/sources")
 async def api_add_source(request: Request):
-    data = await request.json()
     db = get_db()
     if not db:
         return JSONResponse({"status": "error", "message": "DB not available"})
-    ok = add_source(db, data["id"], data["name"], data["type"], data["config"])
+    try:
+        data = await request.json()
+        sid = str(data.get("id", "")).strip()
+        name = str(data.get("name", "")).strip()
+        stype = str(data.get("type", "")).strip()
+        config = str(data.get("config", "")).strip()
+    except Exception:
+        return JSONResponse({"status": "error", "message": "Invalid request body"}, status_code=400)
+
+    if not sid or not name or not stype:
+        return JSONResponse({"status": "error", "message": "id, name, type are required"}, status_code=400)
+    if not all(c.isalnum() or c in "-_" for c in sid):
+        return JSONResponse({"status": "error", "message": "ID must be alphanumeric"}, status_code=400)
+
+    import json
+    try:
+        json.loads(config)
+    except (json.JSONDecodeError, ValueError):
+        return JSONResponse({"status": "error", "message": "Config must be valid JSON"}, status_code=400)
+
+    ok = add_source(db, sid, name, stype, config)
     if ok:
         return JSONResponse({"status": "ok"})
     return JSONResponse({"status": "error", "message": "Source ID already exists"})
@@ -30,15 +49,20 @@ async def api_add_source(request: Request):
 @router.delete("/api/sources/{sid}")
 async def api_remove_source(sid: str):
     db = get_db()
-    if db:
-        remove_source(db, sid)
+    if not db:
+        return JSONResponse({"status": "error", "message": "DB not available"})
+    remove_source(db, sid)
     return JSONResponse({"status": "ok"})
 
 
 @router.patch("/api/sources/{sid}")
 async def api_toggle_source(sid: str, request: Request):
-    data = await request.json()
     db = get_db()
-    if db:
-        toggle_source(db, sid, data.get("enabled", True))
+    if not db:
+        return JSONResponse({"status": "error", "message": "DB not available"})
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    toggle_source(db, sid, data.get("enabled", True))
     return JSONResponse({"status": "ok"})

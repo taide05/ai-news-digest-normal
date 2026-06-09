@@ -1,3 +1,4 @@
+import re
 from fastapi import APIRouter
 from fastapi.responses import Response
 from web.globals import get_db
@@ -6,6 +7,12 @@ from db.queries import get_weekly_review
 from utils import get_week_bounds
 
 router = APIRouter()
+
+_SAFE_FILENAME_RE = re.compile(r'[\x00-\x1f\x7f"*:<>?|\\/]+')
+
+
+def _safe_filename(name: str, max_len: int = 40) -> str:
+    return _SAFE_FILENAME_RE.sub('_', name)[:max_len].rstrip('. ')
 
 
 @router.get("/api/export/article/{article_id}")
@@ -26,7 +33,7 @@ async def export_article(article_id: str):
     md += f"{article['url']}\n\n---\n\n## 核心观点\n\n{insight}\n\n"
     md += f"---\n\n## 这意味着什么\n\n{what_it_means}\n\n---\n\n## 摘要\n\n{article.get('summary', '')}\n"
 
-    filename = article['title'][:40].replace('/', '_').replace('\\', '_') + '.md'
+    filename = _safe_filename(article['title']) + '.md'
     return Response(
         md, media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename={filename}"}

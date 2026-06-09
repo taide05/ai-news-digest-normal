@@ -28,15 +28,19 @@
     <td>{{ s.id }}</td>
     <td>{{ s.name }}</td>
     <td>{{ s.type }}</td>
-    <td><input type="checkbox" {% if s.enabled %}checked{% endif %} onchange="toggleSource('{{ s.id }}', this.checked)"></td>
-    <td><button class="btn btn-danger btn-sm" onclick="removeSource('{{ s.id }}', this)">删除</button></td>
+    <td><input type="checkbox" {% if s.enabled %}checked{% endif %} data-sid="{{ s.id }}" onchange="toggleSource(this)"></td>
+    <td><button class="btn btn-danger btn-sm" data-sid="{{ s.id }}" onclick="removeSource(this)">删除</button></td>
 </tr>
 {% endfor %}
 </tbody>
 </table>
 
 <nav class="bottom-nav">
-    <a href="/">首页</a> | <a href="/search">搜索</a> | <a href="/concepts">概念词典</a> | <a href="/review">周报</a>
+    <a href="/">首页</a>
+    <a href="/sources">信息源</a>
+    <a href="/search">搜索</a>
+    <a href="/concepts">概念词典</a>
+    <a href="/review">周报</a>
 </nav>
 
 <script>
@@ -52,10 +56,12 @@ async function addSource() {
     if (result.status === 'ok') location.reload();
     else alert('添加失败: ' + (result.message || '未知错误'));
 }
-async function toggleSource(id, enabled) {
-    await fetch('/api/sources/' + id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled: enabled})});
+async function toggleSource(cb) {
+    var id = cb.getAttribute('data-sid');
+    await fetch('/api/sources/' + id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled: cb.checked})});
 }
-async function removeSource(id, btn) {
+async function removeSource(btn) {
+    var id = btn.getAttribute('data-sid');
     if (!confirm('确定删除 ' + id + ' ?')) return;
     await fetch('/api/sources/' + id, {method:'DELETE'});
     btn.closest('tr').remove();
