@@ -53,8 +53,7 @@ def test_auto_extract_concepts_no_ai_returns_empty(client):
     db.commit()
     resp = client.get("/api/auto-extract-concepts/test-extract-1")
     assert resp.status_code == 200
-    data = resp.json()
-    assert isinstance(data["concepts"], list)
+    assert resp.text == ""  # No AI, returns empty HTML
 
 
 def test_auto_extract_concepts_cached_response(client):
@@ -70,6 +69,5 @@ def test_auto_extract_concepts_cached_response(client):
     db.commit()
     resp = client.get("/api/auto-extract-concepts/test-extract-2")
     assert resp.status_code == 200
-    data = resp.json()
-    assert data["new"] is False
-    assert "RL" in data["concepts"]
+    assert "RL" in resp.text
+    assert "PPO" in resp.text

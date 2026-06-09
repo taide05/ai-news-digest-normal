@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from fastapi import APIRouter, Request, Query
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse
 from web.limiter import limiter
 from web.globals import get_db, get_ai, get_config
 from db.models import (
@@ -234,37 +234,44 @@ async def concept_lookup(request: Request):
 async def auto_extract_concepts(article_id: str, request: Request = None):
     db = get_db()
     if db is None:
-        return JSONResponse({"concepts": [], "new": False})
+        return HTMLResponse("")
 
     cached = get_cached_analysis(db, article_id, "concepts")
     if cached:
-        return JSONResponse({"concepts": json.loads(cached), "new": False})
+        terms = json.loads(cached)
+        if terms:
+            badges = "".join(
+                f'<span style="background:#1a237e;color:#fff;padding:2px 8px;border-radius:3px;margin:2px;font-size:0.85em;display:inline-block;">{t}</span>'
+                for t in terms
+            )
+            return HTMLResponse(f'<span style="color:#888;">本文概念：</span>{badges}')
+        return HTMLResponse("")
 
     article = get_article(db, article_id)
     if article is None:
-        return JSONResponse({"concepts": [], "new": False})
+        return HTMLResponse("")
 
     full_text = article.get("full_text") or article.get("content") or ""
     if not full_text or full_text in _EXTRACTION_ERROR_SET:
-        return JSONResponse({"concepts": [], "new": False})
+        return HTMLResponse("")
 
     ai = get_ai()
     if ai is None:
-        return JSONResponse({"concepts": [], "new": False})
+        return HTMLResponse("")
 
     system, user = build_concept_extraction_prompt(full_text)
     try:
         raw, tokens = ai.chat(system, user, max_tokens=100)
     except Exception as e:
         logger.warning("Concept extraction failed for article %s: %s", article_id, e)
-        return JSONResponse({"concepts": [], "new": False})
+        return HTMLResponse("")
 
     raw = raw.strip().strip('"').strip("'")
     if raw == "无" or not raw:
         cache_analysis(db, article_id, "concepts", "[]", tokens_used=tokens)
-        return JSONResponse({"concepts": [], "new": False})
+        return HTMLResponse("")
 
-    terms = [t.strip() for t in raw.split(",") if t.strip()]
+    terms = [t.strip().strip('\'"') for t in raw.split(",") if t.strip()]
     new_terms = []
     for term in terms:
         cid = get_or_create_concept(db, term, commit=False)
@@ -275,7 +282,11 @@ async def auto_extract_concepts(article_id: str, request: Request = None):
     concepts_json = json.dumps(new_terms)
     cache_analysis(db, article_id, "concepts", concepts_json, tokens_used=tokens)
 
-    return JSONResponse({"concepts": new_terms, "new": True})
+    badges = "".join(
+        f'<span style="background:#1a237e;color:#fff;padding:2px 8px;border-radius:3px;margin:2px;font-size:0.85em;display:inline-block;">{t}</span>'
+        for t in new_terms
+    )
+    return HTMLResponse(f'<span style="color:#888;">本文概念：</span>{badges}')
 
 
 @router.post("/api/feedback/{article_id}")
