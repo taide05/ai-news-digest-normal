@@ -272,6 +272,45 @@ def get_recommendations_interest(conn, article_id: str, limit: int = 2) -> list[
              "reason": "相似内容"} for r in rows]
 
 
+def save_graph_snapshot(conn, snap_date: str, period: str, data: dict,
+                        commit: bool = True):
+    """Save a graph snapshot for a given date and period."""
+    data_json = json.dumps(data)
+    try:
+        conn.execute(
+            "INSERT INTO graph_snapshots (snap_date, period, data_json) VALUES (?, ?, ?)",
+            (snap_date, period, data_json)
+        )
+        if commit:
+            conn.commit()
+    except sqlite3.IntegrityError:
+        conn.execute(
+            "UPDATE graph_snapshots SET data_json = ? WHERE snap_date = ? AND period = ?",
+            (data_json, snap_date, period)
+        )
+        if commit:
+            conn.commit()
+
+
+def get_graph_snapshot(conn, snap_date: str, period: str) -> dict | None:
+    """Return a saved graph snapshot, or None."""
+    row = conn.execute(
+        "SELECT data_json FROM graph_snapshots WHERE snap_date = ? AND period = ?",
+        (snap_date, period)
+    ).fetchone()
+    return json.loads(row[0]) if row else None
+
+
+def get_snapshot_dates(conn, limit: int = 7) -> list[str]:
+    """Return recent snapshot dates, newest first."""
+    rows = conn.execute(
+        "SELECT DISTINCT snap_date FROM graph_snapshots "
+        "ORDER BY snap_date DESC LIMIT ?",
+        (limit,)
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
 def get_recommendations_gap(conn, limit: int = 2) -> list[dict]:
     """Engine B: Find articles about popular concepts the user hasn't read about."""
     rows = conn.execute(

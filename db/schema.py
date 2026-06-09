@@ -102,6 +102,15 @@ CREATE TABLE IF NOT EXISTS cross_analysis_cache (
     UNIQUE(cluster_id, analysis_type)
 );
 
+CREATE TABLE IF NOT EXISTS graph_snapshots (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    snap_date   TEXT NOT NULL,
+    period      TEXT NOT NULL,
+    data_json   TEXT NOT NULL,
+    created_at  TEXT DEFAULT (datetime('now')),
+    UNIQUE(snap_date, period)
+);
+
 CREATE TABLE IF NOT EXISTS weekly_reviews (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     week_start  TEXT NOT NULL,

@@ -3,20 +3,41 @@
 <h1>资讯关联图</h1>
 
 <div style="margin-bottom:12px;">
-    <a href="/graph?period=today" class="btn" style="{% if period=='today' %}font-weight:bold;{% endif %}">今天</a>
-    <a href="/graph?period=week" class="btn" style="{% if period=='week' %}font-weight:bold;{% endif %}">本周</a>
+    <a href="/graph?period=today" class="btn" style="{% if period=='today' and not compare %}font-weight:bold;{% endif %}">今天</a>
+    {% if dates|length > 0 %}
+    <a href="/graph?period=week" class="btn" style="{% if period=='week' and not compare %}font-weight:bold;{% endif %}">本周</a>
+    {% endif %}
+    {% if dates|length > 1 %}
+    <select id="compare-select" onchange="if(this.value)location.href='/graph?period={{period}}&compare='+this.value" style="margin-left:8px;padding:4px 8px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:4px;">
+        <option value="">对比历史...</option>
+        {% for d in dates %}
+        <option value="{{ d }}" {% if compare==d %}selected{% endif %}>{{ d }}</option>
+        {% endfor %}
+    </select>
+    {% if compare %}
+    <a href="/graph?period={{ period }}" class="btn" style="margin-left:4px;">取消对比</a>
+    {% endif %}
+    {% endif %}
 </div>
 
 {% if nodes|length == 0 %}
-<div class="empty-state">
-    <p>{{ '今天' if period=='today' else '本周' }}还没有已分析的文章。先阅读几篇带概念的文章吧。</p>
+<div class="empty-state"><p>{{ '今天' if period=='today' else '本周' }}还没有已分析的文章。</p></div>
+{% else %}
+{% if compare and compare_nodes|length > 0 %}
+<div style="display:flex;gap:16px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:300px;">
+        <div style="text-align:center;color:#888;margin-bottom:4px;">{{ period }} · 当前</div>
+        <svg id="graph-svg" width="100%" height="400" style="background:var(--surface);border-radius:8px;"></svg>
+    </div>
+    <div style="flex:1;min-width:300px;">
+        <div style="text-align:center;color:#888;margin-bottom:4px;">{{ compare }}</div>
+        <svg id="compare-svg" width="100%" height="400" style="background:var(--surface);border-radius:8px;"></svg>
+    </div>
 </div>
 {% else %}
-<div style="text-align:center;color:#888;margin-bottom:8px;">
-    {{ node_count }} 个节点 · {{ edge_count }} 条边
-</div>
-
+<div style="text-align:center;color:#888;margin-bottom:8px;">{{ node_count }} 个节点 · {{ edge_count }} 条边</div>
 <svg id="graph-svg" width="100%" height="500" style="background:var(--surface);border-radius:8px;"></svg>
+{% endif %}
 {% endif %}
 
 <nav class="bottom-nav">
@@ -28,17 +49,15 @@
 </nav>
 
 <script>
-{% if nodes|length > 0 %}
-(function(){
-    var nodes = {{ nodes | tojson }};
-    var edges = {{ edges | tojson }};
-    var svg = document.getElementById('graph-svg');
+function drawGraph(svgId, nodesData, edgesData) {
+    var svg = document.getElementById(svgId);
+    if (!svg) return;
     var width = svg.clientWidth || 800;
-    var height = 500;
+    var height = parseInt(svg.getAttribute('height'));
 
     var positions = {};
     var R = 8;
-    nodes.forEach(function(n) {
+    nodesData.forEach(function(n) {
         positions[n.id] = {
             x: Math.random() * (width - 100) + 50,
             y: Math.random() * (height - 100) + 50,
@@ -50,46 +69,34 @@
         var ids = Object.keys(positions);
         for (var i = 0; i < ids.length; i++) {
             for (var j = i + 1; j < ids.length; j++) {
-                var a = positions[ids[i]];
-                var b = positions[ids[j]];
-                var dx = a.x - b.x;
-                var dy = a.y - b.y;
+                var a = positions[ids[i]], b = positions[ids[j]];
+                var dx = a.x - b.x, dy = a.y - b.y;
                 var dist = Math.sqrt(dx * dx + dy * dy) || 1;
                 var force = 500 / (dist * dist);
-                a.vx += (dx / dist) * force;
-                a.vy += (dy / dist) * force;
-                b.vx -= (dx / dist) * force;
-                b.vy -= (dy / dist) * force;
+                a.vx += (dx / dist) * force; a.vy += (dy / dist) * force;
+                b.vx -= (dx / dist) * force; b.vy -= (dy / dist) * force;
             }
         }
-        edges.forEach(function(e) {
-            var a = positions[e.from];
-            var b = positions[e.to];
+        edgesData.forEach(function(e) {
+            var a = positions[e.from], b = positions[e.to];
             if (!a || !b) return;
-            var dx = b.x - a.x;
-            var dy = b.y - a.y;
+            var dx = b.x - a.x, dy = b.y - a.y;
             var dist = Math.sqrt(dx * dx + dy * dy) || 1;
             var force = dist * 0.01;
-            a.vx += (dx / dist) * force;
-            a.vy += (dy / dist) * force;
-            b.vx -= (dx / dist) * force;
-            b.vy -= (dy / dist) * force;
+            a.vx += (dx / dist) * force; a.vy += (dy / dist) * force;
+            b.vx -= (dx / dist) * force; b.vy -= (dy / dist) * force;
         });
-        var ids2 = Object.keys(positions);
-        for (var k = 0; k < ids2.length; k++) {
-            var p = positions[ids2[k]];
-            p.x += p.vx * 0.5;
-            p.y += p.vy * 0.5;
+        ids.forEach(function(id) {
+            var p = positions[id];
+            p.x += p.vx * 0.5; p.y += p.vy * 0.5;
             p.x = Math.max(R, Math.min(width - R, p.x));
             p.y = Math.max(R, Math.min(height - R, p.y));
-            p.vx *= 0.9;
-            p.vy *= 0.9;
-        }
+            p.vx *= 0.9; p.vy *= 0.9;
+        });
     }
 
-    edges.forEach(function(e) {
-        var a = positions[e.from];
-        var b = positions[e.to];
+    edgesData.forEach(function(e) {
+        var a = positions[e.from], b = positions[e.to];
         if (!a || !b) return;
         var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
@@ -98,12 +105,11 @@
         line.setAttribute('opacity', '0.4');
         svg.appendChild(line);
     });
-
-    nodes.forEach(function(n) {
+    nodesData.forEach(function(n) {
         var p = positions[n.id];
         var circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y);
-        var r = n.type === 'concept' ? Math.min(4 + n.query_count, 16) : 6;
+        var r = n.type === 'concept' ? Math.min(4 + (n.query_count || 1), 16) : 6;
         circle.setAttribute('r', r);
         circle.setAttribute('fill', n.type === 'concept' ? '#2196f3' : '#ff9800');
         circle.setAttribute('style', 'cursor:pointer;');
@@ -114,15 +120,19 @@
         title.textContent = n.label;
         circle.appendChild(title);
         svg.appendChild(circle);
-
         var text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('x', p.x + r + 2); text.setAttribute('y', p.y + 4);
         text.setAttribute('fill', '#ccc'); text.setAttribute('font-size', '10');
-        text.setAttribute('font-family', 'sans-serif');
         text.textContent = n.label.substring(0, 15);
         svg.appendChild(text);
     });
-})();
+}
+
+{% if nodes|length > 0 %}
+drawGraph('graph-svg', {{ nodes | tojson }}, {{ edges | tojson }});
+{% endif %}
+{% if compare and compare_nodes|length > 0 %}
+drawGraph('compare-svg', {{ compare_nodes | tojson }}, {{ compare_edges | tojson }});
 {% endif %}
 </script>
 {% endblock %}

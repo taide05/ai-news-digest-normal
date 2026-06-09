@@ -1,5 +1,6 @@
 """APScheduler-based task scheduler for AI News Digest."""
 import logging
+from datetime import date
 
 logger = logging.getLogger("scheduler")
 
@@ -44,6 +45,40 @@ def create_scheduler(db_conn, cfg, orchestrator_module):
         try:
             count = await orchestrator_module.run_full_pipeline(db_conn, None, cfg)
             logger.info(f"Scheduler: daily collection complete — {count} articles")
+            # Generate graph snapshot AFTER collection completes
+            try:
+                from db.models import get_graph_data, save_graph_snapshot
+                today_str = date.today().isoformat()
+                rows = get_graph_data(db_conn, "today")
+                if rows:
+                    seen_a = set()
+                    seen_c = set()
+                    snap_nodes = []
+                    snap_edges = []
+                    for r in rows:
+                        if r["article_id"] not in seen_a:
+                            snap_nodes.append({"id": r["article_id"], "label": r["title"][:20],
+                                               "type": "article", "source_id": r["source_id"]})
+                            seen_a.add(r["article_id"])
+                        if r["concept"] not in seen_c:
+                            snap_nodes.append({"id": r["concept"], "label": r["concept"],
+                                               "type": "concept", "query_count": r["query_count"]})
+                            seen_c.add(r["concept"])
+                        snap_edges.append({"from": r["article_id"], "to": r["concept"]})
+                    save_graph_snapshot(db_conn, today_str, "today",
+                                        {"nodes": snap_nodes, "edges": snap_edges})
+                    logger.info(f"Scheduler: graph snapshot saved for {today_str}")
+
+                    # Clean up snapshots older than 30 days
+                    from datetime import timedelta
+                    cutoff = (date.today() - timedelta(days=30)).isoformat()
+                    db_conn.execute(
+                        "DELETE FROM graph_snapshots WHERE snap_date < ?",
+                        (cutoff,)
+                    )
+                    db_conn.commit()
+            except Exception as e:
+                logger.warning(f"Scheduler: graph snapshot failed: {e}")
         except Exception as e:
             logger.error(f"Scheduler: daily job failed: {e}")
 
