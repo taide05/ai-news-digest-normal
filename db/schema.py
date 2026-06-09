@@ -100,6 +100,17 @@ CREATE TABLE IF NOT EXISTS weekly_reviews (
     UNIQUE(week_start)
 );
 
+CREATE TABLE IF NOT EXISTS source_candidates (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    url         TEXT NOT NULL UNIQUE,
+    title       TEXT,
+    description TEXT,
+    relevance_score REAL DEFAULT 0.0,
+    verified    INTEGER DEFAULT 0,
+    discovered_at TEXT DEFAULT (datetime('now')),
+    confirmed_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_source ON articles(source_id);
 CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published_at);
 CREATE INDEX IF NOT EXISTS idx_articles_url ON articles(url);
@@ -149,6 +160,12 @@ def init_db(db_path: str) -> sqlite3.Connection:
 
     try:
         conn.execute("ALTER TABLE weekly_reviews ADD COLUMN review_pushed INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    # v0.5: read_records.topics
+    try:
+        conn.execute("ALTER TABLE read_records ADD COLUMN topics TEXT DEFAULT ''")
     except sqlite3.OperationalError:
         pass
 

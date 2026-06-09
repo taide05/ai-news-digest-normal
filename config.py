@@ -1,7 +1,30 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from dotenv import load_dotenv as _load_dotenv
 import yaml
+
+
+@dataclass
+class SchedulerConfig:
+    cron: str = "0 9 * * *"
+    enabled: bool = True
+    run_on_startup: bool = True
+
+
+@dataclass
+class RankingConfig:
+    interest_weight: float = 0.7
+    freshness_decay: float = 0.3
+    exploration_floor: int = 2
+    cold_start_threshold: int = 15
+    blend_max: int = 25
+
+
+@dataclass
+class DiscoveryConfig:
+    enabled: bool = True
+    max_candidates: int = 50
+    max_pending: int = 50
 
 
 @dataclass
@@ -17,6 +40,9 @@ class Config:
     port: int = 8765
     full_text_retention_days: int = 90
     analysis_cache_retention_days: int = 180
+    scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
+    ranking: RankingConfig = field(default_factory=RankingConfig)
+    discovery: DiscoveryConfig = field(default_factory=DiscoveryConfig)
 
 
 def load_config(env_path: str = ".env", yaml_path: str = "config.yaml") -> Config:
@@ -48,5 +74,23 @@ def load_config(env_path: str = ".env", yaml_path: str = "config.yaml") -> Confi
         if d:
             cfg.full_text_retention_days = d.get("full_text_retention_days", cfg.full_text_retention_days)
             cfg.analysis_cache_retention_days = d.get("analysis_cache_retention_days", cfg.analysis_cache_retention_days)
+
+        # v0.5 nested configs
+        sched = data.get("scheduler", {})
+        if sched:
+            cfg.scheduler.cron = sched.get("cron", cfg.scheduler.cron)
+            cfg.scheduler.enabled = sched.get("enabled", cfg.scheduler.enabled)
+            cfg.scheduler.run_on_startup = sched.get("run_on_startup", cfg.scheduler.run_on_startup)
+
+        rank = data.get("ranking", {})
+        if rank:
+            cfg.ranking.interest_weight = rank.get("interest_weight", cfg.ranking.interest_weight)
+            cfg.ranking.freshness_decay = rank.get("freshness_decay", cfg.ranking.freshness_decay)
+            cfg.ranking.exploration_floor = rank.get("exploration_floor", cfg.ranking.exploration_floor)
+
+        disc = data.get("discovery", {})
+        if disc:
+            cfg.discovery.enabled = disc.get("enabled", cfg.discovery.enabled)
+            cfg.discovery.max_candidates = disc.get("max_candidates", cfg.discovery.max_candidates)
 
     return cfg
