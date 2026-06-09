@@ -1,5 +1,7 @@
 from __future__ import annotations
+import re
 import sqlite3
+from urllib.parse import urlparse
 
 from db.url_utils import normalize_url, make_article_id
 from db.queries import get_clusters_for_date, search_articles, get_weekly_review, save_weekly_review
@@ -151,6 +153,42 @@ def remove_source(conn, sid: str, commit: bool = True):
 
 def toggle_source(conn, sid: str, enabled: bool, commit: bool = True):
     conn.execute("UPDATE sources SET enabled = ? WHERE id = ?", (int(enabled), sid))
+    if commit:
+        conn.commit()
+
+
+def get_pending_candidates(conn, limit: int = 50) -> list[dict]:
+    rows = conn.execute(
+        "SELECT id, url, title, description, relevance_score, discovered_at "
+        "FROM source_candidates WHERE verified = 0 "
+        "ORDER BY relevance_score DESC LIMIT ?",
+        (limit,)
+    ).fetchall()
+    return [{"id": r[0], "url": r[1], "title": r[2], "description": r[3],
+             "relevance_score": r[4], "discovered_at": r[5]} for r in rows]
+
+
+def verify_candidate(conn, candidate_id: int, commit: bool = True):
+    row = conn.execute(
+        "SELECT url, title FROM source_candidates WHERE id = ?", (candidate_id,)
+    ).fetchone()
+    if not row:
+        return
+    url, title = row
+    conn.execute(
+        "UPDATE source_candidates SET verified = 1, confirmed_at = datetime('now') WHERE id = ?",
+        (candidate_id,)
+    )
+    domain = urlparse(url).netloc.lower()
+    sid = re.sub(r'[^a-z0-9-]', '-', domain)[:40]
+    add_source(conn, f"discovered-{sid}", title or domain, "rss",
+               f'{{"url": "{url}"}}', commit=False)
+    if commit:
+        conn.commit()
+
+
+def reject_candidate(conn, candidate_id: int, commit: bool = True):
+    conn.execute("DELETE FROM source_candidates WHERE id = ?", (candidate_id,))
     if commit:
         conn.commit()
 

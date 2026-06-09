@@ -113,10 +113,40 @@ def annotate_clusters(db_conn, ai_client, clusters: list, cfg) -> dict:
     return labels
 
 
-# Stage 6: Discover sources (placeholder until Task 6)
+# Stage 6: Discover sources
 async def discover_sources(db_conn, ai_client, clusters: list, cfg) -> list:
-    """Discover new sources from articles. Placeholder until Task 6."""
-    return []
+    """Discover new sources from articles using URL extraction + AI evaluation."""
+    if not ai_client or not cfg.discovery.enabled:
+        return []
+    candidates = []
+    try:
+        from pipeline.source_miner import extract_source_candidates
+        from ai.discovery import evaluate_source_candidates
+        urls = extract_source_candidates(db_conn, clusters)
+        if urls:
+            candidates = await evaluate_source_candidates(ai_client, urls)
+            _store_candidates(db_conn, candidates, cfg.discovery.max_pending)
+    except Exception as e:
+        logger.warning(f"Source discovery failed: {e}")
+    return candidates
+
+
+def _store_candidates(db_conn, candidates: list, max_pending: int):
+    """Store discovered candidates, respecting pending cap."""
+    cur = db_conn.execute("SELECT COUNT(*) FROM source_candidates WHERE verified = 0")
+    pending = cur.fetchone()[0]
+    if pending >= max_pending:
+        return
+    for c in candidates[:max_pending - pending]:
+        try:
+            db_conn.execute(
+                "INSERT OR IGNORE INTO source_candidates (url, title, description, relevance_score) "
+                "VALUES (?, ?, ?, ?)",
+                (c.get("url", ""), c.get("title", ""), c.get("description", ""), c.get("score", 0.0))
+            )
+        except Exception:
+            pass
+    db_conn.commit()
 
 
 # Stage 7: Push
