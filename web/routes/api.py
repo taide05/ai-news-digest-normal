@@ -295,7 +295,7 @@ async def auto_extract_concepts(article_id: str, request: Request = None):
 async def recommend(article_id: str, request: Request = None):
     db = get_db()
     if db is None:
-        return JSONResponse({"recommendations": []})
+        return HTMLResponse("")
 
     interest = get_recommendations_interest(db, article_id, limit=2)
     gap = get_recommendations_gap(db, limit=2)
@@ -309,7 +309,23 @@ async def recommend(article_id: str, request: Request = None):
         if len(merged) >= 4:
             break
 
-    return JSONResponse({"recommendations": merged})
+    if not merged:
+        return HTMLResponse("")
+
+    cards = ""
+    for r in merged:
+        cards += (
+            f'<div style="padding:8px 12px;margin:4px 0;background:var(--surface);border-radius:4px;'
+            f'border-left:3px solid #2196f3;">'
+            f'<a href="/reader/{r["id"]}" style="font-weight:500;">{r["title"]}</a>'
+            f'<span style="color:#888;font-size:0.8em;margin-left:8px;">{r["source_id"]}</span>'
+            f'<div style="color:#9c27b0;font-size:0.8em;margin-top:2px;">{r["reason"]}</div>'
+            f'</div>'
+        )
+    return HTMLResponse(
+        f'<div style="margin:24px 0;">'
+        f'<h4 style="margin-bottom:8px;">推荐阅读</h4>{cards}</div>'
+    )
 
 
 @router.post("/api/feedback/{article_id}")

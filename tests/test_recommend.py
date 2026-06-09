@@ -70,5 +70,26 @@ def client():
 def test_recommend_endpoint_no_data(client):
     resp = client.get("/api/recommend/nonexistent")
     assert resp.status_code == 200
-    data = resp.json()
-    assert data["recommendations"] == []
+    assert resp.text == ""
+
+
+def test_recommend_endpoint_renders_html(client):
+    from web.globals import get_db
+    from db.models import get_or_create_concept, link_article_concept
+    db = get_db()
+    db.execute(
+        "INSERT OR IGNORE INTO articles (id, source_id, url, title) VALUES (?, ?, ?, ?)",
+        ("rec-src-1", "hackernews", "https://example.com/rec1", "Recommendation Source")
+    )
+    db.execute(
+        "INSERT OR IGNORE INTO articles (id, source_id, url, title) VALUES (?, ?, ?, ?)",
+        ("rec-tgt-1", "jiqizhixin", "https://example.com/rec2", "Recommendation Target")
+    )
+    cid = get_or_create_concept(db, "transformer", commit=False)
+    link_article_concept(db, "rec-src-1", cid, commit=False)
+    link_article_concept(db, "rec-tgt-1", cid, commit=False)
+    db.commit()
+    resp = client.get("/api/recommend/rec-src-1")
+    assert resp.status_code == 200
+    assert "Recommendation Target" in resp.text
+    assert "推荐阅读" in resp.text
