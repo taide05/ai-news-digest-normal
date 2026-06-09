@@ -10,6 +10,7 @@ from db.models import (
     set_feedback, get_or_create_concept, link_article_concept,
     get_concepts_list, get_pending_candidates, verify_candidate, reject_candidate,
     cache_cross_analysis, get_cached_cross_analysis,
+    get_recommendations_interest, get_recommendations_gap,
 )
 from ai.analysis import (
     build_core_insight_prompt, build_what_it_means_prompt,
@@ -287,6 +288,28 @@ async def auto_extract_concepts(article_id: str, request: Request = None):
         for t in new_terms
     )
     return HTMLResponse(f'<span style="color:#888;">本文概念：</span>{badges}')
+
+
+@router.get("/api/recommend/{article_id}")
+@limiter.limit("10/minute")
+async def recommend(article_id: str, request: Request = None):
+    db = get_db()
+    if db is None:
+        return JSONResponse({"recommendations": []})
+
+    interest = get_recommendations_interest(db, article_id, limit=2)
+    gap = get_recommendations_gap(db, limit=2)
+
+    seen = set()
+    merged = []
+    for r in interest + gap:
+        if r["id"] not in seen and r["id"] != article_id:
+            seen.add(r["id"])
+            merged.append(r)
+        if len(merged) >= 4:
+            break
+
+    return JSONResponse({"recommendations": merged})
 
 
 @router.post("/api/feedback/{article_id}")

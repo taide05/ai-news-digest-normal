@@ -112,6 +112,12 @@ function lookupConcept() {
   </button>
 </div>
 
+<div hx-get="/api/recommend/{{ article.id }}"
+     hx-trigger="load delay:3s"
+     hx-target="#recommend-block" hx-swap="innerHTML">
+</div>
+<div id="recommend-block" style="margin:24px 0;"></div>
+
 <div class="export-bar" style="margin:16px 0;">
     <a href="/api/export/article/{{ article.id }}" class="btn">导出 Markdown</a>
 </div>

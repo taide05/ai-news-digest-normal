@@ -253,3 +253,44 @@ def get_cached_cross_analysis(conn, cluster_id: str, analysis_type: str) -> str 
     ).fetchone()
     return row[0] if row else None
 
+
+def get_recommendations_interest(conn, article_id: str, limit: int = 2) -> list[dict]:
+    """Engine A: Find articles sharing concepts with the current article,
+    prioritizing concepts matching user's interested topics."""
+    rows = conn.execute(
+        "SELECT DISTINCT a.id, a.title, a.source_id "
+        "FROM articles a "
+        "JOIN article_concepts ac ON a.id = ac.article_id "
+        "WHERE ac.concept_id IN ("
+        "  SELECT concept_id FROM article_concepts WHERE article_id = ?"
+        ") AND a.id != ? "
+        "AND a.id NOT IN (SELECT article_id FROM read_records) "
+        "LIMIT ?",
+        (article_id, article_id, limit)
+    ).fetchall()
+    return [{"id": r[0], "title": r[1], "source_id": r[2],
+             "reason": "相似内容"} for r in rows]
+
+
+def get_recommendations_gap(conn, limit: int = 2) -> list[dict]:
+    """Engine B: Find articles about popular concepts the user hasn't read about."""
+    rows = conn.execute(
+        "SELECT DISTINCT a.id, a.title, a.source_id, c.term "
+        "FROM articles a "
+        "JOIN article_concepts ac ON a.id = ac.article_id "
+        "JOIN concepts c ON ac.concept_id = c.id "
+        "WHERE c.id IN ("
+        "  SELECT id FROM concepts ORDER BY query_count DESC LIMIT 20"
+        ") "
+        "AND c.id NOT IN ("
+        "  SELECT DISTINCT ac2.concept_id FROM article_concepts ac2 "
+        "  JOIN read_records rr ON ac2.article_id = rr.article_id"
+        ") "
+        "AND a.id NOT IN (SELECT article_id FROM read_records) "
+        "ORDER BY c.query_count DESC, a.fetched_at DESC "
+        "LIMIT ?",
+        (limit,)
+    ).fetchall()
+    return [{"id": r[0], "title": r[1], "source_id": r[2],
+             "reason": f"探索「{r[3]}」"} for r in rows]
+
