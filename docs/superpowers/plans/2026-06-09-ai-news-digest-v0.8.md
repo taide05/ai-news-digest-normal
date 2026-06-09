@@ -124,12 +124,38 @@ def test_get_snapshot_nonexistent(test_db):
 Run: `.venv\Scripts\python.exe -m pytest tests/test_graph_v08.py -v`
 Expected: 4 PASS
 
-- [ ] **Step 4: Update graph.py route to support history + compare**
+- [ ] **Step 4: Update graph.py route — extract helper, support history + compare**
 
-In `D:\Projects\ai-news-digest\web\routes\graph.py`, update the `graph` function:
+In `D:\Projects\ai-news-digest\web\routes\graph.py`, extract a `_build_nodes_and_edges` helper, then update the `graph` function:
 
 ```python
 from db.models import get_graph_data, get_graph_snapshot, get_snapshot_dates
+
+
+def _build_nodes_and_edges(rows: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Convert raw DB rows into deduplicated node/edge lists."""
+    nodes = []
+    edges = []
+    seen_articles = set()
+    seen_concepts = set()
+    for r in rows:
+        aid = r["article_id"]
+        concept = r["concept"]
+        if aid not in seen_articles:
+            nodes.append({
+                "id": aid, "label": r["title"][:20],
+                "type": "article", "source_id": r["source_id"]
+            })
+            seen_articles.add(aid)
+        if concept not in seen_concepts:
+            nodes.append({
+                "id": concept, "label": concept,
+                "type": "concept", "query_count": r["query_count"]
+            })
+            seen_concepts.add(concept)
+        edges.append({"from": aid, "to": concept})
+    return nodes, edges
+
 
 @router.get("/graph", response_class=HTMLResponse)
 async def graph(request: Request, period: str = Query("today"),
@@ -143,24 +169,7 @@ async def graph(request: Request, period: str = Query("today"),
 
     if db:
         rows = get_graph_data(db, period)
-        seen_articles = set()
-        seen_concepts = set()
-        for r in rows:
-            aid = r["article_id"]
-            concept = r["concept"]
-            if aid not in seen_articles:
-                nodes.append({
-                    "id": aid, "label": r["title"][:20],
-                    "type": "article", "source_id": r["source_id"]
-                })
-                seen_articles.add(aid)
-            if concept not in seen_concepts:
-                nodes.append({
-                    "id": concept, "label": concept,
-                    "type": "concept", "query_count": r["query_count"]
-                })
-                seen_concepts.add(concept)
-            edges.append({"from": aid, "to": concept})
+        nodes, edges = _build_nodes_and_edges(rows)
 
         dates = get_snapshot_dates(db)
 
@@ -323,39 +332,50 @@ drawGraph('compare-svg', {{ compare_nodes | tojson }}, {{ compare_edges | tojson
 {% endblock %}
 ```
 
-- [ ] **Step 6: Add snapshot generation to scheduler.py daily_job**
+- [ ] **Step 6: Add snapshot generation + cleanup to scheduler.py daily_job**
 
-In `D:\Projects\ai-news-digest\scheduler.py`, inside the `daily_job` async function, after `logger.info(f"Scheduler: daily collection complete — {count} articles")`, add:
+In `D:\Projects\ai-news-digest\scheduler.py`, inside the `daily_job` async function, after `logger.info(f"Scheduler: daily collection complete — {count} articles")`, add snapshot generation AFTER collection is confirmed complete. Also add a 30-day cleanup of old snapshots:
 
 ```python
-                # Generate graph snapshot for today
+                # Generate graph snapshot AFTER collection completes
                 try:
                     from db.models import get_graph_data, save_graph_snapshot
                     from datetime import date
                     today_str = date.today().isoformat()
                     rows = get_graph_data(db_conn, "today")
-                    seen_a = set()
-                    seen_c = set()
-                    snap_nodes = []
-                    snap_edges = []
-                    for r in rows:
-                        if r["article_id"] not in seen_a:
-                            snap_nodes.append({"id": r["article_id"], "label": r["title"][:20],
-                                               "type": "article", "source_id": r["source_id"]})
-                            seen_a.add(r["article_id"])
-                        if r["concept"] not in seen_c:
-                            snap_nodes.append({"id": r["concept"], "label": r["concept"],
-                                               "type": "concept", "query_count": r["query_count"]})
-                            seen_c.add(r["concept"])
-                        snap_edges.append({"from": r["article_id"], "to": r["concept"]})
-                    save_graph_snapshot(db_conn, today_str, "today",
-                                        {"nodes": snap_nodes, "edges": snap_edges})
-                    logger.info(f"Scheduler: graph snapshot saved for {today_str}")
+                    if rows:  # Only snapshot if there's data
+                        seen_a = set()
+                        seen_c = set()
+                        snap_nodes = []
+                        snap_edges = []
+                        for r in rows:
+                            if r["article_id"] not in seen_a:
+                                snap_nodes.append({"id": r["article_id"], "label": r["title"][:20],
+                                                   "type": "article", "source_id": r["source_id"]})
+                                seen_a.add(r["article_id"])
+                            if r["concept"] not in seen_c:
+                                snap_nodes.append({"id": r["concept"], "label": r["concept"],
+                                                   "type": "concept", "query_count": r["query_count"]})
+                                seen_c.add(r["concept"])
+                            snap_edges.append({"from": r["article_id"], "to": r["concept"]})
+                        save_graph_snapshot(db_conn, today_str, "today",
+                                            {"nodes": snap_nodes, "edges": snap_edges})
+                        logger.info(f"Scheduler: graph snapshot saved for {today_str}")
+
+                        # Clean up snapshots older than 30 days
+                        cutoff = date.today().replace(day=1)  # simplified: keep current month
+                        db_conn.execute(
+                            "DELETE FROM graph_snapshots WHERE snap_date < ?",
+                            (date.today().replace(day=date.today().day - 30).isoformat(),)
+                        )
+                        db_conn.commit()
                 except Exception as e:
                     logger.warning(f"Scheduler: graph snapshot failed: {e}")
 ```
 
-Also add `from datetime import date` to the imports at the top of scheduler.py.
+Note: snapshot generation is guarded by `if rows:` — if today has no concept-annotated articles (v0.7 just launched), no empty snapshot is saved.
+
+Also add `from datetime import date` to the imports at the top of scheduler.py if not already present.
 
 - [ ] **Step 7: Write page tests for graph history**
 
@@ -522,7 +542,7 @@ In `D:\Projects\ai-news-digest\web\routes\api.py`, update the import to add `get
 
 ```python
 from db.models import (
-    ..., get_recommendations_interest, get_recommendations_cluster,
+    ..., get_recommendations_interest, get_recommendations_cluster, get_recent_articles,
 )
 ```
 
@@ -550,17 +570,13 @@ async def recommend(article_id: str, request: Request = None):
 
     # Fallback: if not enough recommendations, fill with recent articles
     if len(merged) < 2:
-        rows = db.execute(
-            "SELECT id, title, source_id FROM articles "
-            "WHERE id != ? AND id NOT IN (SELECT article_id FROM read_records) "
-            "ORDER BY fetched_at DESC LIMIT ?",
-            (article_id, 4 - len(merged))
-        ).fetchall()
-        for r in rows:
-            if r[0] not in seen:
-                seen.add(r[0])
-                merged.append({"id": r[0], "title": r[1], "source_id": r[2],
-                               "reason": "热门文章"})
+        recents = get_recent_articles(db, article_id, exclude_read=True,
+                                       limit=4 - len(merged))
+        for r in recents:
+            if r["id"] not in seen:
+                seen.add(r["id"])
+                merged.append({"id": r["id"], "title": r["title"],
+                               "source_id": r["source_id"], "reason": "热门文章"})
 
     if not merged:
         return HTMLResponse("")
@@ -649,31 +665,54 @@ git commit -m "feat: cluster-based recommendations — recent topic analysis rep
 - Modify: `D:\Projects\ai-news-digest\orchestrator.py` — `generate_weekly_review` 注入统计数据
 - Create: `D:\Projects\ai-news-digest\tests\test_weekly_v08.py`
 
-- [ ] **Step 1: Add weekly stat queries to db/models.py**
+- [ ] **Step 1: Add get_recent_articles + weekly stat queries to db/models.py**
 
 Append to `D:\Projects\ai-news-digest\db\models.py`:
 
 ```python
-def get_weekly_hot_concepts(conn, week_start: str, limit: int = 5) -> list[dict]:
-    """Top concepts by query_count seen this week."""
+def get_recent_articles(conn, exclude_id: str, exclude_read: bool = True,
+                        limit: int = 4) -> list[dict]:
+    """Fallback: return recent unread articles when recommendation engines are empty."""
+    if exclude_read:
+        rows = conn.execute(
+            "SELECT id, title, source_id FROM articles "
+            "WHERE id != ? AND id NOT IN (SELECT article_id FROM read_records) "
+            "ORDER BY fetched_at DESC LIMIT ?",
+            (exclude_id, limit)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT id, title, source_id FROM articles "
+            "WHERE id != ? ORDER BY fetched_at DESC LIMIT ?",
+            (exclude_id, limit)
+        ).fetchall()
+    return [{"id": r[0], "title": r[1], "source_id": r[2]} for r in rows]
+
+
+def _get_weekly_concepts_by_date(conn, week_start: str, date_column: str,
+                                  limit: int) -> list[dict]:
+    """Unified query: get concepts filtered by a date column >= week_start."""
+    # Validate date format to prevent SQL injection via column name
+    assert date_column in ("last_seen", "first_seen"), f"Invalid date column: {date_column}"
+    assert isinstance(week_start, str) and len(week_start) == 10, \
+        f"Invalid week_start format: {week_start}"
     rows = conn.execute(
-        "SELECT term, query_count FROM concepts "
-        "WHERE last_seen >= ? "
-        "ORDER BY query_count DESC LIMIT ?",
+        f"SELECT term, query_count FROM concepts "
+        f"WHERE {date_column} >= ? "
+        f"ORDER BY query_count DESC LIMIT ?",
         (week_start, limit)
     ).fetchall()
     return [{"term": r[0], "count": r[1]} for r in rows]
+
+
+def get_weekly_hot_concepts(conn, week_start: str, limit: int = 5) -> list[dict]:
+    """Top concepts by query_count seen this week."""
+    return _get_weekly_concepts_by_date(conn, week_start, "last_seen", limit)
 
 
 def get_weekly_growing_concepts(conn, week_start: str, limit: int = 3) -> list[dict]:
     """New concepts created this week, ordered by query_count."""
-    rows = conn.execute(
-        "SELECT term, query_count FROM concepts "
-        "WHERE first_seen >= ? "
-        "ORDER BY query_count DESC LIMIT ?",
-        (week_start, limit)
-    ).fetchall()
-    return [{"term": r[0], "count": r[1]} for r in rows]
+    return _get_weekly_concepts_by_date(conn, week_start, "first_seen", limit)
 ```
 
 - [ ] **Step 2: Write tests for weekly stat queries**
@@ -711,6 +750,31 @@ def test_weekly_growing_concepts(test_db):
     growing = get_weekly_growing_concepts(test_db, today)
     assert len(growing) == 1
     assert growing[0]["term"] == "tool-use"
+
+
+def test_weekly_date_format_validation():
+    import pytest
+    from db.models import _get_weekly_concepts_by_date
+    with pytest.raises(AssertionError):
+        _get_weekly_concepts_by_date(None, "bad", "invalid_column", 5)
+    with pytest.raises(AssertionError):
+        _get_weekly_concepts_by_date(None, "not-a-date", "last_seen", 5)
+
+
+def test_get_recent_articles(test_db):
+    from db.models import get_recent_articles
+    test_db.execute(
+        "INSERT OR IGNORE INTO articles (id, source_id, url, title) VALUES (?, ?, ?, ?)",
+        ("ra-1", "hackernews", "https://example.com/ra1", "Recent 1")
+    )
+    test_db.execute(
+        "INSERT OR IGNORE INTO articles (id, source_id, url, title) VALUES (?, ?, ?, ?)",
+        ("ra-2", "jiqizhixin", "https://example.com/ra2", "Recent 2")
+    )
+    test_db.commit()
+    result = get_recent_articles(test_db, "ra-1", exclude_read=False, limit=1)
+    assert len(result) == 1
+    assert result[0]["id"] == "ra-2"
 
 
 def test_weekly_stats_empty(test_db):
@@ -814,7 +878,7 @@ def test_generate_weekly_review_with_stats(test_db):
 ```
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_weekly_v08.py -v`
-Expected: 4 PASS
+Expected: 6 PASS
 
 - [ ] **Step 5: Commit**
 
