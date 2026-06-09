@@ -65,6 +65,29 @@ async def _sse_stream(ai, system_prompt: str, user_prompt: str, max_tokens: int,
     yield "data: [DONE]\n\n"
 
 
+def _get_user_topics(db) -> list[str]:
+    """Extract user interest topics from read_records for personalization."""
+    rows = db.execute(
+        "SELECT DISTINCT topics FROM read_records WHERE topics != '' AND feedback = 'interested'"
+    ).fetchall()
+    topics = []
+    for (t,) in rows:
+        for topic in t.split(","):
+            topic = topic.strip()
+            if topic and topic not in topics:
+                topics.append(topic)
+    return topics[:10]
+
+
+def _get_recent_read_titles(db, limit: int = 10) -> list[str]:
+    """Get titles of recently read articles for context."""
+    rows = db.execute(
+        "SELECT a.title FROM read_records r JOIN articles a ON r.article_id = a.id "
+        "ORDER BY r.opened_at DESC LIMIT ?", (limit,)
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
 # ── analyze / translate / concept-lookup / feedback / review ────────
 
 @router.get("/api/analyze/{article_id}")

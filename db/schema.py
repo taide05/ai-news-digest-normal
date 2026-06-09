@@ -90,6 +90,18 @@ CREATE TABLE IF NOT EXISTS analysis_cache (
     UNIQUE(article_id, analysis_type)
 );
 
+CREATE TABLE IF NOT EXISTS cross_analysis_cache (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    cluster_id    TEXT NOT NULL,
+    analysis_type TEXT NOT NULL,
+    content       TEXT NOT NULL,
+    article_ids   TEXT NOT NULL,
+    model         TEXT DEFAULT 'deepseek-chat',
+    tokens_used   INTEGER,
+    created_at    TEXT DEFAULT (datetime('now')),
+    UNIQUE(cluster_id, analysis_type)
+);
+
 CREATE TABLE IF NOT EXISTS weekly_reviews (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     week_start  TEXT NOT NULL,

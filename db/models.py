@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 import re
 import sqlite3
 from urllib.parse import urlparse
@@ -191,4 +192,34 @@ def reject_candidate(conn, candidate_id: int, commit: bool = True):
     conn.execute("DELETE FROM source_candidates WHERE id = ?", (candidate_id,))
     if commit:
         conn.commit()
+
+
+def cache_cross_analysis(conn, cluster_id: str, analysis_type: str, content: str,
+                         article_ids: list[str], model: str = "deepseek-chat",
+                         tokens_used: int = 0, commit: bool = True):
+    ids_json = json.dumps(article_ids)
+    try:
+        conn.execute(
+            "INSERT INTO cross_analysis_cache (cluster_id, analysis_type, content, article_ids, model, tokens_used) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (cluster_id, analysis_type, content, ids_json, model, tokens_used)
+        )
+        if commit:
+            conn.commit()
+    except sqlite3.IntegrityError:
+        conn.execute(
+            "UPDATE cross_analysis_cache SET content = ?, tokens_used = ? "
+            "WHERE cluster_id = ? AND analysis_type = ?",
+            (content, tokens_used, cluster_id, analysis_type)
+        )
+        if commit:
+            conn.commit()
+
+
+def get_cached_cross_analysis(conn, cluster_id: str, analysis_type: str) -> str | None:
+    row = conn.execute(
+        "SELECT content FROM cross_analysis_cache WHERE cluster_id = ? AND analysis_type = ?",
+        (cluster_id, analysis_type)
+    ).fetchone()
+    return row[0] if row else None
 
