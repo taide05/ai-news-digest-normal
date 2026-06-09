@@ -44,13 +44,23 @@ def create_scheduler(db_conn, cfg, orchestrator_module):
         import asyncio
         asyncio.run(daily_job())
 
-    _scheduler.add_job(
-        job_wrapper,
-        CronTrigger.from_crontab(cfg.scheduler.cron, timezone='Asia/Shanghai'),
-        id='daily_collection',
-        name='Daily collection and push',
-        replace_existing=True,
-    )
+    try:
+        _scheduler.add_job(
+            job_wrapper,
+            CronTrigger.from_crontab(cfg.scheduler.cron, timezone='Asia/Shanghai'),
+            id='daily_collection',
+            name='Daily collection and push',
+            replace_existing=True,
+        )
+    except (ValueError, TypeError) as e:
+        logger.error(f"Invalid scheduler cron '{cfg.scheduler.cron}': {e}. Using default '0 9 * * *'")
+        _scheduler.add_job(
+            job_wrapper,
+            CronTrigger.from_crontab("0 9 * * *", timezone='Asia/Shanghai'),
+            id='daily_collection',
+            name='Daily collection and push',
+            replace_existing=True,
+        )
 
     return _scheduler
 

@@ -15,7 +15,7 @@ def filter_duplicates_by_title(articles: list[dict], threshold: float = 0.85) ->
     for art in articles:
         is_dup = False
         for existing in result:
-            if title_similarity(art["title"], existing["title"]) > threshold:
+            if title_similarity(art.get("title", ""), existing.get("title", "")) > threshold:
                 is_dup = True
                 break
         if not is_dup:

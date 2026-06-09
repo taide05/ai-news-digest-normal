@@ -159,6 +159,8 @@ async def push_to_channels(db_conn, cfg, clusters: list, labels: dict, total_fet
 
     all_ids = [a["id"] for cluster in clusters for a in cluster]
     all_ids = all_ids[:cfg.max_daily_articles]
+    if not all_ids:
+        return False
     create_digest(db_conn, all_ids)
 
     today_str = datetime.now().strftime("%Y-%m-%d")

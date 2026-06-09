@@ -17,7 +17,8 @@ def score_articles(db_conn, articles: list, cfg) -> list:
     if feedback_count < cfg.ranking.cold_start_threshold:
         return _cold_start_score(articles, cfg)
     else:
-        blend = min(1.0, feedback_count / cfg.ranking.blend_max)
+        divisor = max(1, cfg.ranking.blend_max)  # guard against zero-division
+        blend = min(1.0, feedback_count / divisor)
         return _blend_score(db_conn, articles, cfg, blend)
 
 
