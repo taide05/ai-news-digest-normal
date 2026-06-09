@@ -23,21 +23,41 @@ def build_core_insight_prompt(full_text: str) -> tuple[str, str]:
     return system, user
 
 
-def build_what_it_means_prompt(full_text: str, concepts: list[str]) -> tuple[str, str]:
+def build_what_it_means_prompt(full_text: str, concepts: list[str],
+                                user_topics: list[str] | None = None,
+                                read_titles: list[str] | None = None) -> tuple[str, str]:
     concepts_str = ", ".join(concepts) if concepts else "暂无记录"
-    system = "你是一位 AI 领域的资深分析师。用户正在学习 AI，读了一篇文章后想理解它到底意味着什么。"
+    topics_str = ", ".join(user_topics) if user_topics else "暂无记录"
+    read_str = "\n".join(f"- {t}" for t in (read_titles or [])[:10]) or "暂无记录"
+
+    system = "你是一位 AI 领域的资深分析师。用户正在学习 AI，读了一篇文章后想全面理解它的含义。请用中文回答。"
+
     user = f"""用户已了解的概念：{concepts_str}
+用户感兴趣的方向：{topics_str}
+用户最近阅读的文章：
+{read_str}
 
 文章内容：
 {full_text}
 
-请从以下维度分析：
-1. 这件事在 AI 领域有多重要？（从"噪音"到"里程碑"给出判断）
-2. 可信度如何？（有数据支撑还是 PR 宣传？）
-3. 为什么会发生？（技术、商业还是政策在推动？）
-4. 长期看意味着什么？（半年后回头看）
+请从以下 5 个维度分析这篇文章（每段以维度标题开头）：
 
-用通俗中文回答，避免术语堆砌。若原文为英文，用中文输出分析。"""
+**1. 技术意义**
+这项技术/产品/事件对AI技术栈和工程实践有什么实质影响？是渐进改进还是突破？
+
+**2. 商业影响**
+谁会受益？谁会受损？市场格局会发生什么变化？
+
+**3. 行业趋势**
+这是孤立事件还是更大趋势的信号？和最近的其他事件如何串联？
+
+**4. 反方观点**
+谁在反对或质疑这件事？反对的理由有多强？有什么局限性和风险没有被广泛讨论？
+
+**5. 与你相关**
+结合你最近读过的文章和感兴趣的方向，这篇文章对你意味着什么？是否填补了你之前的某个知识空白？
+
+用通俗中文，避免术语堆砌。每段控制在3-5句。"""
     return system, user
 
 

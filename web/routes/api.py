@@ -116,14 +116,18 @@ async def analyze(article_id: str, type: str = Query(...), request: Request = No
 
     if type == "core_insight":
         system, user = build_core_insight_prompt(full_text)
+        max_tokens = 1024
     elif type == "what_it_means":
         concepts = [c["term"] for c in get_concepts_list(db)]
-        system, user = build_what_it_means_prompt(full_text, concepts)
+        user_topics = _get_user_topics(db)
+        read_titles = _get_recent_read_titles(db)
+        system, user = build_what_it_means_prompt(full_text, concepts, user_topics, read_titles)
+        max_tokens = 2048
     else:
         return StreamingResponse(iter(["未知分析类型"]), media_type="text/event-stream")
 
     return StreamingResponse(
-        _sse_stream(ai, system, user, 1024, db, article_id, type),
+        _sse_stream(ai, system, user, max_tokens, db, article_id, type),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
