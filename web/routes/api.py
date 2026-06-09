@@ -10,7 +10,7 @@ from db.models import (
     set_feedback, get_or_create_concept, link_article_concept,
     get_concepts_list, get_pending_candidates, verify_candidate, reject_candidate,
     cache_cross_analysis, get_cached_cross_analysis,
-    get_recommendations_interest, get_recommendations_gap,
+    get_recommendations_interest, get_recommendations_cluster, get_recent_articles,
 )
 from ai.analysis import (
     build_core_insight_prompt, build_what_it_means_prompt,
@@ -298,16 +298,26 @@ async def recommend(article_id: str, request: Request = None):
         return HTMLResponse("")
 
     interest = get_recommendations_interest(db, article_id, limit=2)
-    gap = get_recommendations_gap(db, limit=2)
+    cluster = get_recommendations_cluster(db, limit=2)
 
     seen = set()
     merged = []
-    for r in interest + gap:
+    for r in interest + cluster:
         if r["id"] not in seen and r["id"] != article_id:
             seen.add(r["id"])
             merged.append(r)
         if len(merged) >= 4:
             break
+
+    # Fallback: if not enough recommendations, fill with recent articles
+    if len(merged) < 2:
+        recents = get_recent_articles(db, article_id, exclude_read=True,
+                                       limit=4 - len(merged))
+        for r in recents:
+            if r["id"] not in seen:
+                seen.add(r["id"])
+                merged.append({"id": r["id"], "title": r["title"],
+                               "source_id": r["source_id"], "reason": "热门文章"})
 
     if not merged:
         return HTMLResponse("")

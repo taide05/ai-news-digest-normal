@@ -333,3 +333,47 @@ def get_recommendations_gap(conn, limit: int = 2) -> list[dict]:
     return [{"id": r[0], "title": r[1], "source_id": r[2],
              "reason": f"探索「{r[3]}」"} for r in rows]
 
+
+def get_recommendations_cluster(conn, limit: int = 2) -> list[dict]:
+    """Recommend articles based on recent reading topic clusters.
+    Falls back to empty list if user has no recent reads.
+    """
+    rows = conn.execute(
+        "SELECT a.id, a.title, a.source_id, c.term, COUNT(*) as matches "
+        "FROM articles a "
+        "JOIN article_concepts ac ON a.id = ac.article_id "
+        "JOIN concepts c ON ac.concept_id = c.id "
+        "WHERE ac.concept_id IN ("
+        "  SELECT ac2.concept_id FROM article_concepts ac2 "
+        "  JOIN read_records rr ON ac2.article_id = rr.article_id "
+        "  WHERE rr.opened_at >= date('now', '-7 days')"
+        "  GROUP BY ac2.concept_id ORDER BY COUNT(*) DESC LIMIT 10"
+        ") "
+        "AND a.id NOT IN (SELECT article_id FROM read_records) "
+        "GROUP BY a.id "
+        "ORDER BY matches DESC, a.fetched_at DESC "
+        "LIMIT ?",
+        (limit,)
+    ).fetchall()
+    return [{"id": r[0], "title": r[1], "source_id": r[2],
+             "reason": f"近期关注「{r[3]}」"} for r in rows]
+
+
+def get_recent_articles(conn, exclude_id: str, exclude_read: bool = True,
+                        limit: int = 4) -> list[dict]:
+    """Fallback: return recent unread articles when recommendation engines are empty."""
+    if exclude_read:
+        rows = conn.execute(
+            "SELECT id, title, source_id FROM articles "
+            "WHERE id != ? AND id NOT IN (SELECT article_id FROM read_records) "
+            "ORDER BY fetched_at DESC LIMIT ?",
+            (exclude_id, limit)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT id, title, source_id FROM articles "
+            "WHERE id != ? ORDER BY fetched_at DESC LIMIT ?",
+            (exclude_id, limit)
+        ).fetchall()
+    return [{"id": r[0], "title": r[1], "source_id": r[2]} for r in rows]
+
