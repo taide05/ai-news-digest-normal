@@ -95,3 +95,31 @@ def build_review_prompt(read_articles: list[dict], concepts: list[str],
 
 用通俗中文，像导师跟学生说话的语气。"""
     return system, user
+
+
+def build_cross_comparison_prompt(cluster_articles: list[dict]) -> tuple[str, str]:
+    """Generate cross-article comparison for articles in the same cluster.
+    Only uses titles + source + cached core_insight (no what_it_means dependency).
+    """
+    articles_text = ""
+    for i, art in enumerate(cluster_articles, 1):
+        insight = art.get("insight", "") or "暂无观点"
+        articles_text += (
+            f"[{i}] {art.get('title', '')}\n"
+            f"    来源: {art.get('source_id', '')}\n"
+            f"    核心观点: {insight[:200]}\n\n"
+        )
+
+    system = "你是一个信息对比分析助手。帮助用户理解同一话题下不同报道的异同。"
+    user = f"""以下是关于同一话题的 {len(cluster_articles)} 篇文章：
+
+{articles_text}
+
+请从以下角度对比这些文章：
+1. **观点异同** — 各家报道的观点一致还是冲突？主要分歧在哪？
+2. **事实一致性** — 关键数据和事实是否一致？有没有某家的数据明显异常？
+3. **信息源质量** — 哪家更可信？谁在说事实、谁在发表观点？
+4. **推荐阅读顺序** — 如果只能读 2 篇，应该读哪两篇？为什么？
+
+用中文回答，简洁直接。"""
+    return system, user

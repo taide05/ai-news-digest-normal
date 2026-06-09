@@ -8,10 +8,12 @@ from db.models import (
     get_article, set_full_text, get_cached_analysis, cache_analysis,
     set_feedback, get_or_create_concept, link_article_concept,
     get_concepts_list, get_pending_candidates, verify_candidate, reject_candidate,
+    cache_cross_analysis, get_cached_cross_analysis,
 )
 from ai.analysis import (
     build_core_insight_prompt, build_what_it_means_prompt,
     build_translation_prompt, build_concept_lookup_prompt,
+    build_cross_comparison_prompt,
 )
 from pipeline.extractor import extract_full_text
 
@@ -236,6 +238,51 @@ async def generate_review(request: Request = None):
     if result.get("status") == "exists":
         return JSONResponse({"status": "ok", "message": "本周周报已存在", "review": result["review"]})
     return JSONResponse({"status": "ok", "content": result["content"]})
+
+
+@router.post("/api/cross-compare/{cluster_id}")
+@limiter.limit("5/minute")
+async def cross_compare(cluster_id: str, request: Request = None):
+    db = get_db()
+    if db is None:
+        return JSONResponse({"status": "error", "message": "数据库未配置"})
+
+    # Serve from cache without needing AI
+    cached = get_cached_cross_analysis(db, cluster_id, "cross_comparison")
+    if cached:
+        return JSONResponse({"status": "ok", "content": cached, "cached": True})
+
+    arts = db.execute(
+        "SELECT a.id, a.title, a.source_id, a.url, "
+        "COALESCE(ac.content, '') as insight "
+        "FROM cluster_articles ca "
+        "JOIN articles a ON ca.article_id = a.id "
+        "LEFT JOIN analysis_cache ac ON a.id = ac.article_id AND ac.analysis_type = 'core_insight' "
+        "WHERE ca.cluster_id = ?",
+        (cluster_id,)
+    ).fetchall()
+
+    if len(arts) < 3:
+        return JSONResponse({"status": "error", "message": "至少需要 3 篇文章才能对比"})
+
+    ai = get_ai()
+    if ai is None:
+        return JSONResponse({"status": "error", "message": "AI 服务未配置"})
+
+    cluster_articles = [
+        {"title": r[1], "source_id": r[2], "url": r[3], "insight": r[4]}
+        for r in arts
+    ]
+
+    system, user = build_cross_comparison_prompt(cluster_articles)
+    content, tokens = ai.chat(system, user, max_tokens=1024)
+
+    article_ids = [r[0] for r in arts]
+    cache_cross_analysis(db, cluster_id, "cross_comparison", content, article_ids,
+                         tokens_used=tokens)
+
+    return JSONResponse({"status": "ok", "content": content, "cached": False,
+                         "article_count": len(arts)})
 
 
 @router.post("/api/collect")
