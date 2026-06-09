@@ -42,6 +42,21 @@ class AIClient:
         self.client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
         self.model = model
         self.circuit_breaker = CircuitBreaker()
+        self._daily_tokens = 0
+        self._token_date = ""
+
+    def _track_tokens(self, count: int):
+        """Track daily token usage with automatic date rollover."""
+        from datetime import datetime
+        today = datetime.now().strftime("%Y-%m-%d")
+        if self._token_date != today:
+            if self._daily_tokens > 0:
+                logger.info(f"昨日 AI 调用消耗 {self._daily_tokens} tokens")
+            self._daily_tokens = 0
+            self._token_date = today
+        self._daily_tokens += count
+        if self._daily_tokens > 50000:
+            logger.warning(f"今日 AI 调用已达 {self._daily_tokens} tokens，超过 50000 软上限")
 
     @retry(
         stop=stop_after_attempt(3),
@@ -66,6 +81,7 @@ class AIClient:
             self.circuit_breaker.record_success()
             content = resp.choices[0].message.content or ""
             tokens = resp.usage.total_tokens if resp.usage else 0
+            self._track_tokens(tokens)
             return content, tokens
         except Exception as e:
             self.circuit_breaker.record_failure()
