@@ -1,15 +1,23 @@
 import logging
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from .globals import set_globals, get_db, get_ai, get_config
 from .routes import home, reader, search, concepts, review, sources, export
 
 logger = logging.getLogger(__name__)
 
+limiter = Limiter(key_func=get_remote_address)
+
 
 def create_app() -> FastAPI:
     import os
     app_ = FastAPI()
+    app_.state.limiter = limiter
+    app_.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     app_.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -24,7 +32,6 @@ def create_app() -> FastAPI:
 
     @app_.get("/api/health")
     async def health():
-        from fastapi.responses import JSONResponse
         return JSONResponse(
             {"status": "ok", "server": "ai-news-digest"},
             headers={"x-server": "ai-news-digest"}

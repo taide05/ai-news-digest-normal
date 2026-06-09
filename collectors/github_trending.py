@@ -1,7 +1,7 @@
 from datetime import datetime
 import logging
 import httpx
-import re
+from bs4 import BeautifulSoup
 from .base import BaseCollector, Article
 from .registry import register
 
@@ -22,39 +22,58 @@ class GitHubTrendingCollector(BaseCollector):
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
                 resp = await client.get(
                     self.url,
-                    headers={
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                        "Accept": "text/html",
-                    }
+                    headers={"User-Agent": "ai-news-digest/0.3"}
                 )
                 resp.raise_for_status()
         except httpx.HTTPError as e:
             logger.warning(f"GitHub Trending fetch failed: {e}")
             return []
 
-        repos = re.findall(
-            r'<h2[^>]*>.*?<a[^>]*href="(/([^/]+)/([^"]+))"[^>]*>\s*(?:[^<]*/)?\s*([^<]*)',
-            resp.text, re.DOTALL
-        )
+        soup = BeautifulSoup(resp.text, "lxml")
         seen = set()
-        for full_path, owner, repo_name, _ in repos[:20]:
-            if repo_name in seen:
+        for article_elem in soup.select("article.Box-row"):
+            h2 = article_elem.select_one("h2 a")
+            if not h2:
                 continue
-            seen.add(repo_name)
 
-            desc_match = re.search(
-                rf'<p[^>]*>\s*({re.escape(repo_name)}[^<]*|[^<]{{10,200}})\s*</p>',
-                resp.text, re.IGNORECASE
-            )
+            href = h2.get("href", "").strip()
+            # href is like "/owner/repo"
+            full_name = href.strip("/")
+            parts = full_name.split("/")
+            if len(parts) != 2:
+                continue
+
+            owner, repo = parts
+            full_name_lower = full_name.lower()
+            if full_name_lower in seen:
+                continue
+            seen.add(full_name_lower)
+
+            title = f"{owner}/{repo}"
+            url = f"https://github.com{href}"
+
+            desc_elem = article_elem.select_one("p")
+            summary = desc_elem.text.strip() if desc_elem else ""
+
+            lang_elem = article_elem.select_one('[itemprop="programmingLanguage"]')
+            lang = lang_elem.text.strip() if lang_elem else ""
+
+            stars_elem = article_elem.select_one(".octicon-star")
+            stars = ""
+            if stars_elem and stars_elem.parent:
+                stars = stars_elem.parent.get_text(strip=True)
+
+            content = f"Language: {lang}\nStars: {stars}\n\n{summary}" if lang or stars or summary else None
 
             articles.append(Article(
                 source_id=self.name,
-                url=f"https://github.com{full_path}",
-                title=f"{owner}/{repo_name}",
-                summary=desc_match.group(1).strip() if desc_match else "",
+                url=url,
+                title=title,
+                summary=summary,
                 author=owner,
                 published_at=datetime.now().isoformat(),
                 language="en",
+                content=content,
             ))
 
         return articles

@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import StreamingResponse, JSONResponse
+from web.app import limiter
 from web.globals import get_db, get_ai, get_config
 from db.models import (
     get_article, set_full_text, get_cached_analysis, cache_analysis,
@@ -35,7 +36,8 @@ async def _sse_stream(ai, system_prompt: str, user_prompt: str, max_tokens: int,
 
 
 @router.get("/api/analyze/{article_id}")
-async def analyze(article_id: str, type: str = Query(...)):
+@limiter.limit("10/minute")
+async def analyze(article_id: str, type: str = Query(...), request: Request = None):
     db = get_db()
     ai = get_ai()
     if db is None or ai is None:
@@ -73,7 +75,8 @@ async def analyze(article_id: str, type: str = Query(...)):
 
 
 @router.get("/api/translate/{article_id}")
-async def translate(article_id: str):
+@limiter.limit("10/minute")
+async def translate(article_id: str, request: Request = None):
     db = get_db()
     ai = get_ai()
     if db is None or ai is None:
@@ -104,6 +107,7 @@ async def translate(article_id: str):
 
 
 @router.post("/api/concept-lookup")
+@limiter.limit("10/minute")
 async def concept_lookup(request: Request):
     db = get_db()
     ai = get_ai()
@@ -125,7 +129,8 @@ async def concept_lookup(request: Request):
 
 
 @router.post("/api/feedback/{article_id}")
-async def feedback(article_id: str, feedback: str = Query(...)):
+@limiter.limit("30/minute")
+async def feedback(article_id: str, feedback: str = Query(...), request: Request = None):
     db = get_db()
     if db is None:
         return JSONResponse({"status": "error"})
@@ -134,7 +139,8 @@ async def feedback(article_id: str, feedback: str = Query(...)):
 
 
 @router.post("/api/generate-review")
-async def generate_review():
+@limiter.limit("5/minute")
+async def generate_review(request: Request = None):
     db = get_db()
     ai = get_ai()
     if db is None or ai is None:
@@ -163,5 +169,6 @@ async def generate_review():
 
 
 @router.post("/api/collect")
-async def trigger_collect():
+@limiter.limit("30/minute")
+async def trigger_collect(request: Request = None):
     return JSONResponse({"status": "unavailable", "message": "Collection is triggered automatically on startup; manual collection via API is not supported yet."})

@@ -8,6 +8,8 @@ import yaml
 class Config:
     deepseek_api_key: str = ""
     wecom_webhook_url: str = ""
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
     exploration_rate: float = 0.15
     cluster_threshold: float = 0.6
     max_daily_articles: int = 20
@@ -24,6 +26,8 @@ def load_config(env_path: str = ".env", yaml_path: str = "config.yaml") -> Confi
         _load_dotenv(env_path, override=True)
     cfg.deepseek_api_key = os.getenv("DEEPSEEK_API_KEY", "")
     cfg.wecom_webhook_url = os.getenv("WECOM_WEBHOOK_URL", "")
+    cfg.telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    cfg.telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
 
     if os.path.isfile(yaml_path):
         with open(yaml_path, "r", encoding="utf-8") as f:

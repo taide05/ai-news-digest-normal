@@ -141,6 +141,16 @@ async def run_collection_pipeline(db_conn, ai_client, cfg):
             mark_webhook_sent(db_conn)
             logger.info("WeChat push sent successfully")
 
+        # Telegram push
+        if cfg.telegram_bot_token and cfg.telegram_chat_id:
+            from push_telegram import send_telegram_digest as tg_digest
+            success_tg = await tg_digest(
+                cfg.telegram_bot_token, cfg.telegram_chat_id,
+                today_str, len(all_articles), len(all_ids), cluster_data
+            )
+            if success_tg:
+                logger.info("Telegram push sent successfully")
+
     # Weekly review auto-push on Mondays
     if datetime.now().weekday() == 0:
         from push import send_wecom_review
@@ -159,6 +169,14 @@ async def run_collection_pipeline(db_conn, ai_client, cfg):
                 )
                 db_conn.commit()
                 logger.info("Weekly review pushed successfully")
+
+            # Telegram weekly review push
+            if cfg.telegram_bot_token and cfg.telegram_chat_id:
+                from push_telegram import send_telegram_review as tg_review
+                await tg_review(
+                    cfg.telegram_bot_token, cfg.telegram_chat_id,
+                    review_week_start, review_week_end, existing["content"]
+                )
 
     cleanup_old_data(db_conn, cfg.full_text_retention_days, cfg.analysis_cache_retention_days)
     return len(new_articles)

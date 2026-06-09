@@ -35,3 +35,18 @@ class TestHackerNewsKeywordFilter:
     def test_keyword_case_insensitive(self):
         assert self.collector._is_ai_related("Building a RAG pipeline")
         assert self.collector._is_ai_related("New rag techniques")
+
+
+from collectors.github_trending import GitHubTrendingCollector
+
+
+class TestGitHubTrendingCollector:
+    def test_registered(self):
+        from collectors.registry import _collectors
+        assert "github-trending" in _collectors
+
+    def test_instantiatable_and_attributes(self):
+        collector = GitHubTrendingCollector()
+        assert collector.name == "github-trending"
+        assert collector.url == "https://github.com/trending/python?since=daily"
+        assert collector.type == "web"
