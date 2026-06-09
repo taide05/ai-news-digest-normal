@@ -87,10 +87,13 @@ def load_config(env_path: str = ".env", yaml_path: str = "config.yaml") -> Confi
             cfg.ranking.interest_weight = rank.get("interest_weight", cfg.ranking.interest_weight)
             cfg.ranking.freshness_decay = rank.get("freshness_decay", cfg.ranking.freshness_decay)
             cfg.ranking.exploration_floor = rank.get("exploration_floor", cfg.ranking.exploration_floor)
+            cfg.ranking.cold_start_threshold = rank.get("cold_start_threshold", cfg.ranking.cold_start_threshold)
+            cfg.ranking.blend_max = rank.get("blend_max", cfg.ranking.blend_max)
 
         disc = data.get("discovery", {})
         if disc:
             cfg.discovery.enabled = disc.get("enabled", cfg.discovery.enabled)
             cfg.discovery.max_candidates = disc.get("max_candidates", cfg.discovery.max_candidates)
+            cfg.discovery.max_pending = disc.get("max_pending", cfg.discovery.max_pending)
 
     return cfg

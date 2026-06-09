@@ -35,7 +35,6 @@ def test_load_config_defaults_when_no_yaml():
 
 
 def test_config_nested_defaults():
-    from config import Config
     cfg = Config()
     assert cfg.scheduler.cron == "0 9 * * *"
     assert cfg.scheduler.run_on_startup is True
@@ -46,13 +45,28 @@ def test_config_nested_defaults():
 
 
 def test_config_existing_fields_preserved():
-    from config import Config
     cfg = Config()
     assert cfg.exploration_rate == 0.15
     assert cfg.cluster_threshold == 0.6
     assert cfg.max_daily_articles == 20
     assert cfg.host == "127.0.0.1"
     assert cfg.port == 8765
+
+
+def test_config_nested_from_yaml():
+    with tempfile.TemporaryDirectory() as tmp:
+        yaml_path = os.path.join(tmp, "config.yaml")
+        with open(yaml_path, "w") as f:
+            f.write("scheduler:\n  cron: 0 8 * * *\n  run_on_startup: false\n")
+            f.write("ranking:\n  cold_start_threshold: 10\n  blend_max: 30\n  exploration_floor: 3\n")
+            f.write("discovery:\n  max_pending: 25\n")
+        cfg = load_config(env_path="/nonexistent/.env", yaml_path=yaml_path)
+        assert cfg.scheduler.cron == "0 8 * * *"
+        assert cfg.scheduler.run_on_startup is False
+        assert cfg.ranking.cold_start_threshold == 10
+        assert cfg.ranking.blend_max == 30
+        assert cfg.ranking.exploration_floor == 3
+        assert cfg.discovery.max_pending == 25
 
 
 def test_source_candidates_schema():
