@@ -225,6 +225,27 @@ def cache_cross_analysis(conn, cluster_id: str, analysis_type: str, content: str
             conn.commit()
 
 
+def get_graph_data(conn, period: str = "today") -> list[dict]:
+    """Return concept-article relations for the graph page.
+    period: 'today' or 'week'.
+    """
+    if period == "today":
+        date_filter = "date('now')"
+    else:
+        date_filter = "date('now', '-7 days')"
+
+    rows = conn.execute(
+        "SELECT a.id, a.title, a.source_id, c.term, c.query_count "
+        "FROM articles a "
+        "JOIN article_concepts ac ON a.id = ac.article_id "
+        "JOIN concepts c ON ac.concept_id = c.id "
+        "WHERE a.fetched_at >= " + date_filter + " "
+        "ORDER BY c.query_count DESC LIMIT 100",
+    ).fetchall()
+    return [{"article_id": r[0], "title": r[1], "source_id": r[2],
+             "concept": r[3], "query_count": r[4]} for r in rows]
+
+
 def get_cached_cross_analysis(conn, cluster_id: str, analysis_type: str) -> str | None:
     row = conn.execute(
         "SELECT content FROM cross_analysis_cache WHERE cluster_id = ? AND analysis_type = ?",
