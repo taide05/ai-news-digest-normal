@@ -7,6 +7,26 @@ logger = logging.getLogger("scheduler")
 _scheduler = None
 
 
+def _weekly_md_job(db_conn, cfg, orchestrator_module):
+    """Generate and push weekly Markdown review."""
+    import asyncio
+    from ai.client import AIClient
+
+    async def _run():
+        ai_client = None
+        if cfg.deepseek_api_key:
+            ai_client = AIClient(cfg.deepseek_api_key)
+        if not ai_client:
+            logger.warning("Weekly MD: No AI client available")
+            return
+        result = orchestrator_module.generate_weekly_review(db_conn, ai_client, cfg)
+        if result and result.get("status") == "ok":
+            pushed = await orchestrator_module.push_weekly_review(db_conn, cfg)
+            logger.info(f"Weekly MD: generated and pushed={pushed}")
+
+    asyncio.run(_run())
+
+
 def create_scheduler(db_conn, cfg, orchestrator_module):
     """Create and configure APScheduler with daily collection job."""
     from apscheduler.schedulers.background import BackgroundScheduler
@@ -61,6 +81,20 @@ def create_scheduler(db_conn, cfg, orchestrator_module):
             name='Daily collection and push',
             replace_existing=True,
         )
+
+    def weekly_md_wrapper():
+        _weekly_md_job(db_conn, cfg, orchestrator_module)
+
+    try:
+        _scheduler.add_job(
+            weekly_md_wrapper,
+            CronTrigger.from_crontab("0 8 * * 1", timezone='Asia/Shanghai'),
+            id='weekly_md_review',
+            name='Weekly Markdown review generation and push',
+            replace_existing=True,
+        )
+    except Exception as e:
+        logger.warning(f"Could not add weekly_md job: {e}")
 
     return _scheduler
 

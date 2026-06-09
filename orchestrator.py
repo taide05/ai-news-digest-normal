@@ -247,10 +247,35 @@ def generate_weekly_review(db_conn, ai_client, cfg):
 
     system, user = build_review_prompt(articles, concepts, interested, not_interested)
     content, tokens = ai_client.chat(system, user, max_tokens=2048)
-    article_ids = get_read_article_ids_since(db_conn, since)
-    save_weekly_review(db_conn, week_start, week_end, content, article_ids)
 
-    return {"status": "ok", "content": content, "week_start": week_start, "week_end": week_end}
+    # Build Markdown with top concepts and recommendations
+    from db.models import get_recommendations_gap
+    top_concepts = get_concepts_list(db_conn, limit=5)
+    top_concept_str = ", ".join(c["term"] for c in top_concepts) or "暂无数据"
+    recs = get_recommendations_gap(db_conn, limit=3)
+    if recs:
+        rec_lines = "\n".join(f"- [{r['title']}](/reader/{r['id']})" for r in recs)
+    else:
+        rec_lines = "暂无推荐"
+
+    md_content = f"""# AI 资讯周刊 — {week_start} ~ {week_end}
+
+## 本周概览
+{content}
+
+## 本周热词
+{top_concept_str}
+
+## 推荐阅读
+{rec_lines}
+
+---
+由 AI 资讯管家自动生成 | {datetime.now().strftime('%Y-%m-%d %H:%M')}"""
+
+    article_ids = get_read_article_ids_since(db_conn, since)
+    save_weekly_review(db_conn, week_start, week_end, md_content, article_ids)
+
+    return {"status": "ok", "content": md_content, "week_start": week_start, "week_end": week_end}
 
 
 async def push_weekly_review(db_conn, cfg) -> bool:
