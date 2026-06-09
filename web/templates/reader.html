@@ -47,17 +47,38 @@
     </div>
 </div>
 
-<div class="analysis-section">
-    <button hx-get="/api/analyze/{{ article.id }}?type=what_it_means" hx-target="#what-it-means-result"
-            hx-swap="innerHTML" hx-ext="sse"
-            sse-connect="/api/analyze/{{ article.id }}?type=what_it_means"
-            class="btn btn-primary">
-        这意味着什么？
-    </button>
-    <div id="what-it-means-result"></div>
+<div class="analysis-section" id="what-it-means">
+    <h3 style="cursor:pointer;" onclick="toggleSection('wim-content')">
+        这意味着什么？ <span style="font-size:0.8em;color:#888;">（点击展开）</span>
+    </h3>
+    <div id="wim-content" style="display:none;">
+        <button hx-get="/api/analyze/{{ article.id }}?type=what_it_means" hx-target="#wim-result"
+                hx-swap="innerHTML" hx-ext="sse"
+                sse-connect="/api/analyze/{{ article.id }}?type=what_it_means"
+                class="btn btn-primary" onclick="this.style.display='none'">
+            开始分析
+        </button>
+        <div id="wim-result"></div>
+    </div>
 </div>
 
+{% if cluster_article_count >= 3 %}
+<div class="analysis-section" id="cross-compare">
+    <button hx-post="/api/cross-compare/{{ cluster_id }}"
+            hx-target="#cross-compare-result" hx-swap="innerHTML"
+            class="btn">
+        对比同话题 {{ cluster_article_count }} 篇文章
+    </button>
+    <div id="cross-compare-result" style="margin-top:12px;"></div>
+</div>
+{% endif %}
+
 <script>
+function toggleSection(id) {
+    const el = document.getElementById(id);
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
 function lookupConcept() {
     const selection = window.getSelection().toString().trim();
     if (!selection || selection.length > 100) return;
