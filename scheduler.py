@@ -1,6 +1,5 @@
 """APScheduler-based task scheduler for AI News Digest."""
 import logging
-from datetime import datetime
 
 logger = logging.getLogger("scheduler")
 
@@ -45,18 +44,6 @@ def create_scheduler(db_conn, cfg, orchestrator_module):
         try:
             count = await orchestrator_module.run_full_pipeline(db_conn, None, cfg)
             logger.info(f"Scheduler: daily collection complete — {count} articles")
-
-            # Event-driven Monday review: trigger AFTER collection completes
-            if datetime.now().weekday() == 0:
-                logger.info("Scheduler: Monday detected, triggering weekly review")
-                from ai.client import AIClient
-                ai_client = None
-                if cfg.deepseek_api_key:
-                    ai_client = AIClient(cfg.deepseek_api_key)
-                if ai_client:
-                    result = orchestrator_module.generate_weekly_review(db_conn, ai_client, cfg)
-                    if result and result.get("status") == "ok":
-                        await orchestrator_module.push_weekly_review(db_conn, cfg)
         except Exception as e:
             logger.error(f"Scheduler: daily job failed: {e}")
 
