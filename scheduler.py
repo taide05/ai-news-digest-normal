@@ -57,14 +57,6 @@ def create_scheduler(db_conn, cfg, orchestrator_module):
                                         {"nodes": snap_nodes, "edges": snap_edges})
                     logger.info(f"Scheduler: graph snapshot saved for {today_str}")
 
-                    # Clean up snapshots older than 30 days
-                    from datetime import timedelta
-                    cutoff = (date.today() - timedelta(days=30)).isoformat()
-                    db_conn.execute(
-                        "DELETE FROM graph_snapshots WHERE snap_date < ?",
-                        (cutoff,)
-                    )
-                    db_conn.commit()
             except Exception as e:
                 logger.warning(f"Scheduler: graph snapshot failed: {e}")
         except Exception as e:
