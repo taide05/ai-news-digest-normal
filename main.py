@@ -48,7 +48,7 @@ def main():
 
     port = cfg.port
     for offset in range(3):
-        if not check_existing_server(port + offset) or offset == 0:
+        if not check_existing_server(port + offset):
             port = port + offset
             break
 

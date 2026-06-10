@@ -5,23 +5,25 @@ import json
 
 def get_clusters_for_date(conn: sqlite3.Connection, date_str: str) -> list[dict]:
     rows = conn.execute(
-        "SELECT id, label FROM clusters WHERE digest_date = ?", (date_str,)
+        "SELECT c.id as cluster_id, c.label, a.id, a.title, a.source_id, "
+        "a.language, a.published_at "
+        "FROM clusters c "
+        "JOIN cluster_articles ca ON ca.cluster_id = c.id "
+        "JOIN articles a ON ca.article_id = a.id "
+        "WHERE c.digest_date = ? "
+        "ORDER BY c.id, a.published_at DESC",
+        (date_str,)
     ).fetchall()
-    result = []
+    result: dict[int, dict] = {}
     for row in rows:
-        arts = conn.execute(
-            "SELECT a.id, a.title, a.source_id, a.language, a.published_at "
-            "FROM cluster_articles ca JOIN articles a ON ca.article_id = a.id "
-            "WHERE ca.cluster_id = ? ORDER BY a.published_at DESC",
-            (row[0],)
-        ).fetchall()
-        col_names = [c[1] for c in conn.execute("PRAGMA table_info(articles)").fetchall()
-                     if c[1] in ("id", "title", "source_id", "language", "published_at")]
-        result.append({
-            "label": row[1],
-            "articles": [dict(zip(col_names, r)) for r in arts],
+        cid = row[0]
+        if cid not in result:
+            result[cid] = {"label": row[1], "articles": []}
+        result[cid]["articles"].append({
+            "id": row[2], "title": row[3], "source_id": row[4],
+            "language": row[5], "published_at": row[6],
         })
-    return result
+    return list(result.values())
 
 
 def _sanitize_fts5_query(query: str) -> str:

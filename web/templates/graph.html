@@ -112,7 +112,7 @@ function drawGraph(svgId, nodesData, edgesData) {
         circle.setAttribute('fill', n.type === 'concept' ? '#2196f3' : '#ff9800');
         circle.setAttribute('style', 'cursor:pointer;');
         circle.setAttribute('onclick', n.type === 'concept'
-            ? "location.href='/search?q=" + encodeURIComponent(n.label) + "'"
+            ? "location.href='/concepts/" + encodeURIComponent(n.label) + "'"
             : "location.href='/reader/" + n.id + "'");
         var title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
         title.textContent = n.label;

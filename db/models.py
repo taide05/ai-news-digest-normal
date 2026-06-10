@@ -512,7 +512,7 @@ def backfill_concept_nodes_from_snapshots(conn):
 def prune_stale_concepts(conn, retention_days: int = 90,
                           weight_threshold: float = 1.0,
                           commit: bool = True):
-    """Soft-delete concept snapshots older than retention_days with low weight."""
+    """Delete concept snapshots older than retention_days with low weight."""
     conn.execute(
         "DELETE FROM concept_nodes WHERE snap_date < date('now', ?) "
         "AND weight < ? AND lifecycle_state = 'declining'",

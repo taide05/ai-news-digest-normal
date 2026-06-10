@@ -6,7 +6,7 @@
 <div class="concepts-list">
     {% for c in concepts %}
     <div class="concept-item">
-        <strong>{{ c.term }}</strong>
+        <strong><a href="/concepts/{{ c.term | urlencode }}">{{ c.term }}</a></strong>
         <span class="query-count">查询 {{ c.query_count }} 次</span>
         {% if c.definition %}
         <p>{{ c.definition }}</p>

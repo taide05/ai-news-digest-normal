@@ -366,8 +366,8 @@ async def feedback(article_id: str, feedback: str = Query(...), request: Request
                             "AND id = (SELECT MAX(id) FROM read_records WHERE article_id = ?)",
                             (topics, article_id, article_id)
                         )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Topic extraction failed for article %s: %s", article_id, e)
     db.commit()
 
     label = "已标记感兴趣" if feedback == "interested" else "已标记不感兴趣"
