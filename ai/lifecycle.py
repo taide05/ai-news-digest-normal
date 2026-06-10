@@ -1,5 +1,4 @@
 """Concept lifecycle state machine with hysteresis windows."""
-from collections import deque
 
 # State transition hysteresis windows (days)
 RISING_WINDOW = 3
