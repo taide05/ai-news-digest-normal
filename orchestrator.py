@@ -1,4 +1,5 @@
 """Pipeline orchestrator -- composable stage functions for collection pipeline."""
+import json
 import logging
 import asyncio
 from datetime import datetime, timedelta
@@ -8,12 +9,41 @@ logger = logging.getLogger("orchestrator")
 
 # Stage 1: Collect
 async def collect_all(db_conn, cfg) -> list:
-    """Fetch from all collectors, insert articles, return new_articles list."""
-    from collectors.registry import get_all
-    from db.models import insert_article
+    from collectors.registry import get_all, get_enabled
+    from db.models import insert_article, get_all_sources
 
     since = datetime.now() - timedelta(days=2)
-    collectors = get_all()
+
+    sources = get_all_sources(db_conn)
+    enabled_ids = [s["id"] for s in sources if s["enabled"]]
+
+    if not enabled_ids:
+        logger.warning("No enabled sources in DB, skipping collection")
+        return []
+
+    collectors = get_enabled(enabled_ids)
+    registered_names = {c.name for c in collectors}
+
+    for s in sources:
+        if s["id"] in registered_names or not s["enabled"]:
+            continue
+        try:
+            config = json.loads(s["config"])
+        except (json.JSONDecodeError, TypeError):
+            logger.warning(f"Invalid config JSON for source {s['id']}, skipping")
+            continue
+        if s["type"] == "rss" and "url" in config:
+            from collectors.rss_reader import RSSCollector
+            lang = config.get("language", "en")
+            collectors.append(RSSCollector(s["id"], config["url"], language=lang))
+            logger.info(f"Dynamic RSS collector created for {s['id']}")
+        else:
+            logger.warning(f"No collector class for type={s['type']} source={s['id']}, skipping")
+
+    if not collectors:
+        logger.warning("No collectors available for enabled sources")
+        return []
+
     tasks = [c.fetch(since) for c in collectors]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 

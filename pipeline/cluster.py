@@ -2,6 +2,7 @@ import hashlib
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.cluster.hierarchy import fcluster, linkage
+from scipy.spatial.distance import squareform
 
 
 def cluster_articles(articles: list[dict], threshold: float = 0.6) -> list[list[dict]]:
@@ -16,7 +17,7 @@ def cluster_articles(articles: list[dict], threshold: float = 0.6) -> list[list[
         sim_matrix = cosine_similarity(tfidf)
         dist_matrix = 1.0 - sim_matrix
         dist_matrix[dist_matrix < 0] = 0
-        Z = linkage(dist_matrix, method='single')
+        Z = linkage(squareform(dist_matrix), method='single')
         labels = fcluster(Z, t=1.0 - threshold, criterion='distance')
     except Exception:
         return [[a] for a in articles]

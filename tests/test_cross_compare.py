@@ -44,19 +44,16 @@ def test_build_cross_comparison_prompt():
 def test_cross_compare_insufficient_articles(client):
     resp = client.post("/api/cross-compare/test-cl-small")
     assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "error"
-    # Nonexistent cluster → "话题不存在"; 1-2 articles → mentions "3"
-    assert ("3" in data["message"] or "不存在" in data["message"])
+    text = resp.text
+    assert "不存在" in text or "3" in text
 
 
 def test_cross_compare_invalid_cluster_id(client):
     long_id = "x" * 200
     resp = client.post(f"/api/cross-compare/{long_id}")
     assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "error"
-    assert "无效" in data["message"]
+    text = resp.text
+    assert "无效" in text
 
 
 def test_cross_compare_cached_response(client):
@@ -72,6 +69,5 @@ def test_cross_compare_cached_response(client):
     db.commit()
     resp = client.post("/api/cross-compare/test-cl-cached")
     assert resp.status_code == 200
-    data = resp.json()
-    assert data["cached"] is True
-    assert data["content"] == "预缓存的对比结果"
+    text = resp.text
+    assert "预缓存的对比结果" in text

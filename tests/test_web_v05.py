@@ -30,7 +30,7 @@ def test_feedback_endpoint(test_db, client):
     test_db.commit()
     resp = client.post("/api/feedback/test-fb-1?feedback=interested")
     assert resp.status_code == 200
-    assert resp.json()["status"] == "ok"
+    assert "已标记" in resp.text
 
 
 def test_source_candidates_page(client):

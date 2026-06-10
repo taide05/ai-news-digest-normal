@@ -433,14 +433,18 @@ def save_concept_nodes(conn, snap_date: str, nodes: list[dict],
             continue
         label = node["label"]
         weight = float(node.get("weight", node.get("query_count", 1)))
+        article_count = node.get("article_count", 0)
         conn.execute(
             "INSERT INTO concept_nodes (concept_label, weight, article_count, "
             "first_seen_date, last_seen_date, snap_date) "
-            "VALUES (?, ?, 1, ?, ?, ?) "
+            "VALUES (?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(concept_label, snap_date) DO UPDATE SET "
-            "weight = excluded.weight, article_count = concept_nodes.article_count + 1, "
+            "weight = excluded.weight, "
+            "article_count = CASE WHEN ? > 0 THEN ? ELSE concept_nodes.article_count + 1 END, "
             "last_seen_date = excluded.last_seen_date",
-            (label, weight, snap_date, snap_date, snap_date)
+            (label, weight, article_count if article_count > 0 else 1,
+             snap_date, snap_date, snap_date,
+             article_count, article_count)
         )
     if commit:
         conn.commit()

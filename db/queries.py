@@ -1,3 +1,4 @@
+import re
 import sqlite3
 import json
 
@@ -23,14 +24,26 @@ def get_clusters_for_date(conn: sqlite3.Connection, date_str: str) -> list[dict]
     return result
 
 
+def _sanitize_fts5_query(query: str) -> str:
+    clean = re.sub(r'[*"()+\-]', ' ', query)
+    clean = ' '.join(clean.split())
+    if not clean:
+        return '""'
+    return '"' + clean + '"'
+
+
 def search_articles(conn: sqlite3.Connection, query: str, limit: int = 20) -> list[dict]:
-    rows = conn.execute(
-        "SELECT a.id, a.title, a.source_id, a.language, a.published_at, "
-        "snippet(articles_fts, 1, '<mark>', '</mark>', '...', 32) as snippet "
-        "FROM articles_fts f JOIN articles a ON a._rowid_ = f.rowid "
-        "WHERE articles_fts MATCH ? ORDER BY rank LIMIT ?",
-        (query, limit)
-    ).fetchall()
+    safe_query = _sanitize_fts5_query(query)
+    try:
+        rows = conn.execute(
+            "SELECT a.id, a.title, a.source_id, a.language, a.published_at, "
+            "snippet(articles_fts, 1, '<mark>', '</mark>', '...', 32) as snippet "
+            "FROM articles_fts f JOIN articles a ON a._rowid_ = f.rowid "
+            "WHERE articles_fts MATCH ? ORDER BY rank LIMIT ?",
+            (safe_query, limit)
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
     return [{
         "id": r[0], "title": r[1], "source_id": r[2],
         "language": r[3], "published_at": r[4], "snippet": r[5],

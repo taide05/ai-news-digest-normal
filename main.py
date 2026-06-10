@@ -68,6 +68,11 @@ def main():
     db_path = os.path.join(os.path.dirname(__file__), "ai_news.db")
     db_conn = init_db(db_path)
 
+    from db.models import backfill_concept_nodes_from_snapshots
+    backfilled = backfill_concept_nodes_from_snapshots(db_conn)
+    if backfilled > 0:
+        logger.info(f"Backfilled concept_nodes from {backfilled} graph snapshots")
+
     ai_client = None
     if cfg.deepseek_api_key:
         from ai.client import AIClient

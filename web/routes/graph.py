@@ -11,11 +11,16 @@ router = APIRouter()
 
 
 def _build_nodes_and_edges(rows: list[dict]) -> tuple[list[dict], list[dict]]:
-    """Convert raw DB rows into deduplicated node/edge lists."""
     nodes = []
     edges = []
     seen_articles = set()
     seen_concepts = set()
+    concept_article_sets: dict[str, set] = {}
+    for r in rows:
+        concept = r["concept"]
+        if concept not in concept_article_sets:
+            concept_article_sets[concept] = set()
+        concept_article_sets[concept].add(r["article_id"])
     for r in rows:
         aid = r["article_id"]
         concept = r["concept"]
@@ -28,7 +33,8 @@ def _build_nodes_and_edges(rows: list[dict]) -> tuple[list[dict], list[dict]]:
         if concept not in seen_concepts:
             nodes.append({
                 "id": concept, "label": concept,
-                "type": "concept", "query_count": r["query_count"]
+                "type": "concept", "query_count": r["query_count"],
+                "article_count": len(concept_article_sets.get(concept, set()))
             })
             seen_concepts.add(concept)
         edges.append({"from": aid, "to": concept})

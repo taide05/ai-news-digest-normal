@@ -49,7 +49,7 @@ class TestFeedback:
         set_globals(None, None, None)
         client = TestClient(app)
         resp = client.post("/api/feedback/article123?feedback=interested")
-        assert resp.json()["status"] == "error"
+        assert "错误" in resp.text
 
 
 class TestCollectTrigger:

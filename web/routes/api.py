@@ -1,4 +1,5 @@
 import asyncio
+import html
 import json
 import logging
 from fastapi import APIRouter, Request, Query
@@ -48,9 +49,9 @@ async def list_source_candidates(request: Request = None):
 async def verify_source_candidate(candidate_id: int, request: Request = None):
     db = get_db()
     if db is None:
-        return JSONResponse({"status": "error", "message": "DB unavailable"})
+        return HTMLResponse('<tr><td colspan="4" style="color:red;padding:10px;">数据库不可用</td></tr>')
     verify_candidate(db, candidate_id)
-    return JSONResponse({"status": "ok"})
+    return HTMLResponse('<tr><td colspan="4" style="color:#4caf50;padding:10px;">已确认，已加入信息源列表</td></tr>')
 
 
 @router.post("/api/source-candidates/{candidate_id}/reject")
@@ -58,9 +59,9 @@ async def verify_source_candidate(candidate_id: int, request: Request = None):
 async def reject_source_candidate(candidate_id: int, request: Request = None):
     db = get_db()
     if db is None:
-        return JSONResponse({"status": "error", "message": "DB unavailable"})
+        return HTMLResponse('<tr><td colspan="4" style="color:red;padding:10px;">数据库不可用</td></tr>')
     reject_candidate(db, candidate_id)
-    return JSONResponse({"status": "ok"})
+    return HTMLResponse('<tr><td colspan="4" style="color:#888;padding:10px;">已拒绝</td></tr>')
 
 
 # ── SSE helper ──────────────────────────────────────────────────────
@@ -242,7 +243,7 @@ async def auto_extract_concepts(article_id: str, request: Request = None):
         terms = json.loads(cached)
         if terms:
             badges = "".join(
-                f'<span style="background:#1a237e;color:#fff;padding:2px 8px;border-radius:3px;margin:2px;font-size:0.85em;display:inline-block;">{t}</span>'
+                f'<span style="background:#1a237e;color:#fff;padding:2px 8px;border-radius:3px;margin:2px;font-size:0.85em;display:inline-block;">{html.escape(t)}</span>'
                 for t in terms
             )
             return HTMLResponse(f'<span style="color:#888;">本文概念：</span>{badges}')
@@ -284,7 +285,7 @@ async def auto_extract_concepts(article_id: str, request: Request = None):
     cache_analysis(db, article_id, "concepts", concepts_json, tokens_used=tokens)
 
     badges = "".join(
-        f'<span style="background:#1a237e;color:#fff;padding:2px 8px;border-radius:3px;margin:2px;font-size:0.85em;display:inline-block;">{t}</span>'
+        f'<span style="background:#1a237e;color:#fff;padding:2px 8px;border-radius:3px;margin:2px;font-size:0.85em;display:inline-block;">{html.escape(t)}</span>'
         for t in new_terms
     )
     return HTMLResponse(f'<span style="color:#888;">本文概念：</span>{badges}')
@@ -327,9 +328,9 @@ async def recommend(article_id: str, request: Request = None):
         cards += (
             f'<div style="padding:8px 12px;margin:4px 0;background:var(--surface);border-radius:4px;'
             f'border-left:3px solid #2196f3;">'
-            f'<a href="/reader/{r["id"]}" style="font-weight:500;">{r["title"]}</a>'
-            f'<span style="color:#888;font-size:0.8em;margin-left:8px;">{r["source_id"]}</span>'
-            f'<div style="color:#9c27b0;font-size:0.8em;margin-top:2px;">{r["reason"]}</div>'
+            f'<a href="/reader/{r["id"]}" style="font-weight:500;">{html.escape(r["title"])}</a>'
+            f'<span style="color:#888;font-size:0.8em;margin-left:8px;">{html.escape(r["source_id"])}</span>'
+            f'<div style="color:#9c27b0;font-size:0.8em;margin-top:2px;">{html.escape(r["reason"])}</div>'
             f'</div>'
         )
     return HTMLResponse(
@@ -344,12 +345,11 @@ async def feedback(article_id: str, feedback: str = Query(...), request: Request
     global _user_topics_cache
     db = get_db()
     if db is None:
-        return JSONResponse({"status": "error"})
+        return HTMLResponse('<span style="color:red;">错误</span>')
     set_feedback(db, article_id, feedback, commit=False)
 
-    # Auto-extract topics from article on positive feedback
     if feedback == "interested":
-        _user_topics_cache = None  # invalidate cache
+        _user_topics_cache = None
         try:
             article = get_article(db, article_id)
             if article:
@@ -367,10 +367,12 @@ async def feedback(article_id: str, feedback: str = Query(...), request: Request
                             (topics, article_id, article_id)
                         )
         except Exception:
-            pass  # best-effort topic extraction
+            pass
     db.commit()
 
-    return JSONResponse({"status": "ok"})
+    label = "已标记感兴趣" if feedback == "interested" else "已标记不感兴趣"
+    color = "#4caf50" if feedback == "interested" else "#f44336"
+    return HTMLResponse(f'<span style="color:{color};font-weight:500;">{label}</span>')
 
 
 @router.post("/api/generate-review")
@@ -379,39 +381,39 @@ async def generate_review(request: Request = None):
     db = get_db()
     ai = get_ai()
     if db is None or ai is None:
-        return JSONResponse({"status": "error", "message": "AI 服务未配置"})
+        return HTMLResponse('<div class="error">AI 服务未配置</div>')
 
     import orchestrator as orch
     cfg = get_config()
     result = orch.generate_weekly_review(db, ai, cfg)
     if result is None:
-        return JSONResponse({"status": "error", "message": "没有足够的阅读数据生成周报"})
+        return HTMLResponse('<div class="error">没有足够的阅读数据生成周报</div>')
     if result.get("status") == "exists":
-        return JSONResponse({"status": "ok", "message": "本周周报已存在", "review": result["review"]})
-    return JSONResponse({"status": "ok", "content": result["content"]})
+        html = result["review"].replace('\n', '<br>')
+        return HTMLResponse(f'<div class="review-result">{html}</div>')
+    html = result["content"].replace('\n', '<br>')
+    return HTMLResponse(f'<div class="review-result">{html}</div>')
 
 
 @router.post("/api/cross-compare/{cluster_id}")
 @limiter.limit("5/minute")
 async def cross_compare(cluster_id: str, request: Request = None):
     if not cluster_id or len(cluster_id) > 128:
-        return JSONResponse({"status": "error", "message": "无效的 cluster_id"})
+        return HTMLResponse('<div class="error">无效的 cluster_id</div>')
 
     db = get_db()
     if db is None:
-        return JSONResponse({"status": "error", "message": "数据库未配置"})
+        return HTMLResponse('<div class="error">数据库未配置</div>')
 
     cached = get_cached_cross_analysis(db, cluster_id, "cross_comparison")
     if cached:
-        return JSONResponse({"status": "ok", "content": cached, "cached": True})
+        return HTMLResponse(f'<div class="cross-compare-result">{cached.replace(chr(10), "<br>")}</div>')
 
-    # TOCTOU guard: serialize requests for the same cluster
     lock = _cluster_locks.setdefault(cluster_id, asyncio.Lock())
     async with lock:
-        # Double-check cache inside lock
         cached = get_cached_cross_analysis(db, cluster_id, "cross_comparison")
         if cached:
-            return JSONResponse({"status": "ok", "content": cached, "cached": True})
+            return HTMLResponse(f'<div class="cross-compare-result">{cached.replace(chr(10), "<br>")}</div>')
 
         try:
             arts = db.execute(
@@ -425,16 +427,16 @@ async def cross_compare(cluster_id: str, request: Request = None):
             ).fetchall()
         except Exception as e:
             logger.warning("DB read error in cross_compare for cluster %s: %s", cluster_id, e)
-            return JSONResponse({"status": "error", "message": "数据查询失败"})
+            return HTMLResponse('<div class="error">数据查询失败</div>')
 
         if len(arts) == 0:
-            return JSONResponse({"status": "error", "message": "话题不存在"})
+            return HTMLResponse('<div class="error">话题不存在</div>')
         if len(arts) < 3:
-            return JSONResponse({"status": "error", "message": f"本话题仅有 {len(arts)} 篇文章，至少需要 3 篇"})
+            return HTMLResponse(f'<div class="error">本话题仅有 {len(arts)} 篇文章，至少需要 3 篇</div>')
 
         ai = get_ai()
         if ai is None:
-            return JSONResponse({"status": "error", "message": "AI 服务未配置"})
+            return HTMLResponse('<div class="error">AI 服务未配置</div>')
 
         cluster_articles = [
             {"title": r[1], "source_id": r[2], "url": r[3], "insight": r[4]}
@@ -446,7 +448,7 @@ async def cross_compare(cluster_id: str, request: Request = None):
             content, tokens = ai.chat(system, user, max_tokens=1024)
         except Exception as e:
             logger.warning("AI chat error in cross_compare for cluster %s: %s", cluster_id, e)
-            return JSONResponse({"status": "error", "message": "AI 分析失败，请稍后重试"})
+            return HTMLResponse('<div class="error">AI 分析失败，请稍后重试</div>')
 
         article_ids = [r[0] for r in arts]
         try:
@@ -455,8 +457,7 @@ async def cross_compare(cluster_id: str, request: Request = None):
         except Exception as e:
             logger.warning("Failed to cache cross_analysis for cluster %s: %s", cluster_id, e)
 
-        return JSONResponse({"status": "ok", "content": content, "cached": False,
-                             "article_count": len(arts)})
+        return HTMLResponse(f'<div class="cross-compare-result">{content.replace(chr(10), "<br>")}</div>')
 
 
 @router.post("/api/collect")
