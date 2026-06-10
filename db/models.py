@@ -271,6 +271,24 @@ def get_graph_data(conn, period: str = "today") -> list[dict]:
              "concept": r[3], "query_count": r[4]} for r in rows]
 
 
+def get_graph_data_from_nodes(conn, snap_date: str) -> list[dict]:
+    """Return concept nodes for a given date as graph-compatible rows."""
+    rows = conn.execute(
+        "SELECT cn.concept_label AS concept, cn.weight AS query_count, "
+        "a.id AS article_id, a.title, a.source_id "
+        "FROM concept_nodes cn "
+        "JOIN concepts c ON cn.concept_label = c.term "
+        "JOIN article_concepts ac ON c.id = ac.concept_id "
+        "JOIN articles a ON ac.article_id = a.id "
+        "WHERE cn.snap_date = ? "
+        "AND a.fetched_at >= ? "
+        "ORDER BY cn.weight DESC LIMIT 100",
+        (snap_date, snap_date)
+    ).fetchall()
+    return [{"article_id": r[2], "title": r[3], "source_id": r[4],
+             "concept": r[0], "query_count": r[1]} for r in rows]
+
+
 def get_cached_cross_analysis(conn, cluster_id: str, analysis_type: str) -> str | None:
     row = conn.execute(
         "SELECT content FROM cross_analysis_cache WHERE cluster_id = ? AND analysis_type = ?",

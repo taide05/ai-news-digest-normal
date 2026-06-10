@@ -1,7 +1,9 @@
+from datetime import date as _date
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import HTMLResponse
 from web.globals import get_db
-from db.models import get_graph_data, get_graph_snapshot, get_snapshot_dates
+from db.models import (get_graph_data, get_graph_snapshot, get_snapshot_dates,
+                       get_graph_data_from_nodes)
 from web.templates import templates
 
 
@@ -44,9 +46,17 @@ async def graph(request: Request, period: str = Query("today"),
     compare_edges = []
 
     if db:
-        rows = get_graph_data(db, period)
-        nodes, edges = _build_nodes_and_edges(rows)
+        today_str = _date.today().isoformat()
 
+        if period == "today":
+            # Prefer concept_nodes for today, fallback to live JOIN
+            rows = get_graph_data_from_nodes(db, today_str)
+            if not rows:
+                rows = get_graph_data(db, period)
+        else:
+            rows = get_graph_data(db, period)
+
+        nodes, edges = _build_nodes_and_edges(rows)
         dates = get_snapshot_dates(db)
 
         if compare:
