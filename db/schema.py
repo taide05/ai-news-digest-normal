@@ -111,6 +111,18 @@ CREATE TABLE IF NOT EXISTS graph_snapshots (
     UNIQUE(snap_date, period)
 );
 
+CREATE TABLE IF NOT EXISTS concept_nodes (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    concept_label   TEXT NOT NULL,
+    weight          REAL DEFAULT 0.0,
+    article_count   INTEGER DEFAULT 0,
+    first_seen_date TEXT NOT NULL,
+    last_seen_date  TEXT NOT NULL,
+    snap_date       TEXT NOT NULL,
+    lifecycle_state TEXT DEFAULT 'new',
+    UNIQUE(concept_label, snap_date)
+);
+
 CREATE TABLE IF NOT EXISTS weekly_reviews (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     week_start  TEXT NOT NULL,
@@ -142,6 +154,8 @@ CREATE INDEX IF NOT EXISTS idx_analysis_article ON analysis_cache(article_id);
 CREATE INDEX IF NOT EXISTS idx_cluster_articles_article ON cluster_articles(article_id);
 CREATE INDEX IF NOT EXISTS idx_digest_articles_article ON digest_articles(article_id);
 CREATE INDEX IF NOT EXISTS idx_clusters_date ON clusters(digest_date);
+CREATE INDEX IF NOT EXISTS idx_concept_nodes_label ON concept_nodes(concept_label);
+CREATE INDEX IF NOT EXISTS idx_concept_nodes_snap_date ON concept_nodes(snap_date);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS articles_fts USING fts5(
     title, full_text, content='articles', content_rowid='_rowid_'

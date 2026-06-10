@@ -402,3 +402,101 @@ def get_recent_articles(conn, exclude_id: str, exclude_read: bool = True,
         ).fetchall()
     return [{"id": r[0], "title": r[1], "source_id": r[2]} for r in rows]
 
+
+# ---------------------------------------------------------------------------
+#  concept_nodes — knowledge graph persistence layer
+# ---------------------------------------------------------------------------
+
+def save_concept_nodes(conn, snap_date: str, nodes: list[dict],
+                       commit: bool = True):
+    """Write concept nodes for a given snap_date. UPSERT by (label, date)."""
+    for node in nodes:
+        if node.get("type") != "concept":
+            continue
+        label = node["label"]
+        weight = float(node.get("weight", node.get("query_count", 1)))
+        conn.execute(
+            "INSERT INTO concept_nodes (concept_label, weight, article_count, "
+            "first_seen_date, last_seen_date, snap_date) "
+            "VALUES (?, ?, 1, ?, ?, ?) "
+            "ON CONFLICT(concept_label, snap_date) DO UPDATE SET "
+            "weight = excluded.weight, article_count = concept_nodes.article_count + 1, "
+            "last_seen_date = excluded.last_seen_date",
+            (label, weight, snap_date, snap_date, snap_date)
+        )
+    if commit:
+        conn.commit()
+
+
+def get_concept_nodes_by_date(conn, snap_date: str) -> list[dict]:
+    """Return all concept nodes for a given snap_date."""
+    rows = conn.execute(
+        "SELECT id, concept_label, weight, article_count, "
+        "first_seen_date, last_seen_date, lifecycle_state "
+        "FROM concept_nodes WHERE snap_date = ? "
+        "ORDER BY weight DESC",
+        (snap_date,)
+    ).fetchall()
+    return [{"id": r[0], "label": r[1], "weight": r[2],
+             "article_count": r[3], "first_seen_date": r[4],
+             "last_seen_date": r[5], "lifecycle_state": r[6]} for r in rows]
+
+
+def get_concept_node_history(conn, concept_label: str,
+                              days: int = 90) -> list[dict]:
+    """Return daily snapshots for a single concept, ordered by date ASC."""
+    rows = conn.execute(
+        "SELECT snap_date, weight, article_count, lifecycle_state "
+        "FROM concept_nodes WHERE concept_label = ? "
+        "AND snap_date >= date('now', ?) "
+        "ORDER BY snap_date ASC",
+        (concept_label, f"-{days} days")
+    ).fetchall()
+    return [{"snap_date": r[0], "weight": r[1],
+             "article_count": r[2], "lifecycle_state": r[3]} for r in rows]
+
+
+def get_distinct_concept_labels(conn, limit: int = 200) -> list[str]:
+    """Return distinct concept labels seen recently."""
+    rows = conn.execute(
+        "SELECT DISTINCT concept_label FROM concept_nodes "
+        "WHERE snap_date >= date('now', '-30 days') "
+        "ORDER BY concept_label LIMIT ?",
+        (limit,)
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+def backfill_concept_nodes_from_snapshots(conn):
+    """One-time: populate concept_nodes from existing graph_snapshots JSON."""
+    existing = conn.execute("SELECT COUNT(*) FROM concept_nodes").fetchone()[0]
+    if existing > 0:
+        return 0  # Already populated
+
+    rows = conn.execute(
+        "SELECT snap_date, data_json FROM graph_snapshots ORDER BY snap_date ASC"
+    ).fetchall()
+    import json
+    count = 0
+    for snap_date, data_json in rows:
+        data = json.loads(data_json)
+        nodes = data.get("nodes", [])
+        save_concept_nodes(conn, snap_date, nodes, commit=False)
+        count += 1
+    if count > 0:
+        conn.commit()
+    return count
+
+
+def prune_stale_concepts(conn, retention_days: int = 90,
+                          weight_threshold: float = 1.0,
+                          commit: bool = True):
+    """Soft-delete concept snapshots older than retention_days with low weight."""
+    conn.execute(
+        "DELETE FROM concept_nodes WHERE snap_date < date('now', ?) "
+        "AND weight < ? AND lifecycle_state = 'declining'",
+        (f"-{retention_days} days", weight_threshold)
+    )
+    if commit:
+        conn.commit()
+
