@@ -55,11 +55,8 @@ def _save_graph_snapshot(db_conn, today_str: str):
                         {"nodes": snapshot_nodes, "edges": snap_edges})
 
     # Update lifecycle states
-    try:
-        from ai.lifecycle import update_all_lifecycle_states
-        update_all_lifecycle_states(db_conn, today_str)
-    except ImportError:
-        pass  # lifecycle module not yet created (Task 5)
+    from ai.lifecycle import update_all_lifecycle_states
+    update_all_lifecycle_states(db_conn, today_str)
 
     # Prune stale concepts
     prune_stale_concepts(db_conn)
