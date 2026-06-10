@@ -55,7 +55,7 @@ def test_get_distinct_concept_labels(test_db):
     save_concept_nodes(test_db, "2026-06-10", nodes_b)
 
     labels = get_distinct_concept_labels(test_db)
-    assert "Alpha" in labels or "Beta" in labels
+    assert "Alpha" in labels and "Beta" in labels
 
 
 def test_backfill_skips_when_populated(test_db):

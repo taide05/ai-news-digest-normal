@@ -476,7 +476,6 @@ def backfill_concept_nodes_from_snapshots(conn):
     rows = conn.execute(
         "SELECT snap_date, data_json FROM graph_snapshots ORDER BY snap_date ASC"
     ).fetchall()
-    import json
     count = 0
     for snap_date, data_json in rows:
         data = json.loads(data_json)
