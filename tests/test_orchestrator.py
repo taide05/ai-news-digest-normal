@@ -55,3 +55,50 @@ def test_push_weekly_review_no_review(test_db, test_config):
     from orchestrator import push_weekly_review
     result = asyncio.run(push_weekly_review(test_db, test_config))
     assert result is False  # no review exists
+
+
+def test_keyword_filtering_blocks_matching_article(test_db, test_config):
+    import json
+    from db.models import get_all_sources, update_source_filter
+
+    update_source_filter(test_db, "hackernews", json.dumps(["spamword", "ad"]), commit=True)
+    sources = get_all_sources(test_db)
+
+    source_filters = {}
+    for s in sources:
+        try:
+            kw = json.loads(s.get("filter_keywords", "[]"))
+            if kw:
+                source_filters[s["id"]] = [k.lower() for k in kw]
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    class MockArticle:
+        def __init__(self, source_id, title, summary=""):
+            self.source_id = source_id
+            self.title = title
+            self.summary = summary
+            self.url = "http://example.com"
+            self.content = ""
+            self.author = None
+            self.published_at = None
+            self.language = "en"
+
+    blocked = MockArticle("hackernews", "This contains SPAMWORD here", "some summary")
+    allowed = MockArticle("hackernews", "Normal article about AI", "interesting content")
+    other_source = MockArticle("arxiv-cs-ai", "This has spamword too", "")
+
+    articles = [blocked, allowed, other_source]
+    filtered = []
+    for art in articles:
+        keywords = source_filters.get(art.source_id, [])
+        if keywords:
+            text = (art.title + " " + (art.summary or "")).lower()
+            if any(kw in text for kw in keywords):
+                continue
+        filtered.append(art)
+
+    assert len(filtered) == 2
+    filtered_ids = {a.source_id for a in filtered}
+    assert "hackernews" in filtered_ids
+    assert "arxiv-cs-ai" in filtered_ids

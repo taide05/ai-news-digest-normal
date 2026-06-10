@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from web.globals import get_db
-from db.models import get_all_sources, add_source, remove_source, toggle_source, get_pending_candidates
+from db.models import get_all_sources, add_source, remove_source, toggle_source, update_source_filter, get_pending_candidates
 from web.templates import templates
 
 router = APIRouter()
@@ -25,6 +25,7 @@ async def api_add_source(request: Request):
         name = str(data.get("name", "")).strip()
         stype = str(data.get("type", "")).strip()
         config = str(data.get("config", "")).strip()
+        filter_keywords = str(data.get("filter_keywords", "[]")).strip()
     except Exception:
         return JSONResponse({"status": "error", "message": "Invalid request body"}, status_code=400)
 
@@ -39,7 +40,14 @@ async def api_add_source(request: Request):
     except (json.JSONDecodeError, ValueError):
         return JSONResponse({"status": "error", "message": "Config must be valid JSON"}, status_code=400)
 
-    ok = add_source(db, sid, name, stype, config)
+    try:
+        parsed_kw = json.loads(filter_keywords)
+        if not isinstance(parsed_kw, list):
+            return JSONResponse({"status": "error", "message": "filter_keywords must be a JSON array"}, status_code=400)
+    except (json.JSONDecodeError, TypeError):
+        return JSONResponse({"status": "error", "message": "filter_keywords must be a valid JSON array"}, status_code=400)
+
+    ok = add_source(db, sid, name, stype, config, filter_keywords)
     if ok:
         return JSONResponse({"status": "ok"})
     return JSONResponse({"status": "error", "message": "Source ID already exists"})
@@ -63,7 +71,17 @@ async def api_toggle_source(sid: str, request: Request):
         data = await request.json()
     except Exception:
         data = {}
-    toggle_source(db, sid, data.get("enabled", True))
+    import json
+    if "filter_keywords" in data:
+        try:
+            parsed_kw = json.loads(data["filter_keywords"])
+            if not isinstance(parsed_kw, list):
+                return JSONResponse({"status": "error", "message": "filter_keywords must be a JSON array"}, status_code=400)
+        except (json.JSONDecodeError, TypeError):
+            return JSONResponse({"status": "error", "message": "filter_keywords must be a valid JSON array"}, status_code=400)
+        update_source_filter(db, sid, data["filter_keywords"])
+    if "enabled" in data or "filter_keywords" not in data:
+        toggle_source(db, sid, data.get("enabled", True))
     return JSONResponse({"status": "ok"})
 
 

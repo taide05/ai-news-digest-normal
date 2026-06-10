@@ -6,7 +6,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from .limiter import limiter
 from .globals import set_globals, get_db, get_ai, get_config
-from .routes import home, reader, search, concepts, review, sources, export, graph, api
+from .routes import home, reader, search, concepts, review, sources, export, graph, api, admin
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,7 @@ def create_app() -> FastAPI:
     app_.include_router(export.router)
     app_.include_router(graph.router)
     app_.include_router(api.router)
+    app_.include_router(admin.router)
 
     @app_.get("/api/health")
     async def health():

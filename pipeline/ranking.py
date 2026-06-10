@@ -15,7 +15,7 @@ def score_articles(db_conn, articles: list, cfg) -> list:
     feedback_count = _count_feedback(db_conn)
 
     if feedback_count < cfg.ranking.cold_start_threshold:
-        return _cold_start_score(articles, cfg)
+        return _cold_start_score(articles, cfg, db_conn)
     else:
         blend = min(1.0, max(0, (feedback_count - cfg.ranking.cold_start_threshold) / max(1, cfg.ranking.blend_max - cfg.ranking.cold_start_threshold)))
         return _blend_score(db_conn, articles, cfg, blend)
@@ -26,16 +26,14 @@ def _count_feedback(db_conn) -> int:
     return cur.fetchone()[0]
 
 
-def _cold_start_score(articles: list, cfg) -> list:
+def _cold_start_score(articles: list, cfg, db_conn=None) -> list:
     """Score by recency + source reputation. No AI needed."""
     now = datetime.now()
-    source_weights = {
-        "arxiv-cs-ai": 0.9,
-        "hackernews": 0.7,
-        "jiqizhixin": 0.6,
-        "github-trending": 0.8,
-        "reddit-ml": 0.5,
-    }
+    source_weights = {}
+    if db_conn:
+        from ai.preference import compute_user_profile
+        profile = compute_user_profile(db_conn, cfg)
+        source_weights = profile.get("sources", {})
 
     for art in articles:
         score = 0.5  # baseline
@@ -64,18 +62,20 @@ def _cold_start_score(articles: list, cfg) -> list:
 
 def _blend_score(db_conn, articles: list, cfg, blend: float) -> list:
     """Progressive blend between cold-start and interest-driven scoring."""
-    articles = _cold_start_score(articles, cfg)
+    articles = _cold_start_score(articles, cfg, db_conn)
 
-    user_topics = _get_user_topics(db_conn)
-    if not user_topics:
-        return articles  # no interest data yet, keep cold-start scores
+    from ai.preference import compute_user_profile
+    profile = compute_user_profile(db_conn, cfg)
+    topic_weights = profile.get("topics", {})
+    if not topic_weights:
+        return articles
 
     exploration_count = max(cfg.ranking.exploration_floor, int(len(articles) * 0.2))
     scored = []
 
     for i, art in enumerate(articles):
         cold_score = art.get("score", 0.5)
-        interest_bonus = _calculate_interest_bonus(art, user_topics)
+        interest_bonus = _calculate_interest_bonus(art, topic_weights)
         # Progressive blend: as blend increases, interest signal takes over
         art["score"] = round(cold_score * (1 - blend) + (cold_score + interest_bonus) * blend, 4)
         art["_explore"] = i >= (len(articles) - exploration_count)
@@ -98,16 +98,14 @@ def _get_user_topics(db_conn) -> set:
     return topics
 
 
-def _calculate_interest_bonus(art: dict, user_topics: set) -> float:
-    """Calculate interest bonus based on article content matching user topics."""
-    if not user_topics:
+def _calculate_interest_bonus(art, topic_weights):
+    if not topic_weights:
         return 0.0
-
-    title = art.get("title", "").lower()
-    summary = art.get("summary", "").lower()
+    title = (art.get("title") or "").lower()
+    summary = (art.get("summary") or "").lower()
     text = title + " " + summary
-
-    matches = sum(1 for t in user_topics if t in text)
-    if matches == 0:
-        return 0.0
-    return min(0.4, matches * 0.15)
+    bonus = 0.0
+    for topic, weight in topic_weights.items():
+        if topic in text:
+            bonus += weight * 0.15
+    return min(0.4, bonus)

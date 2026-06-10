@@ -21,6 +21,12 @@ class RankingConfig:
 
 
 @dataclass
+class PreferenceConfig:
+    half_life_days: int = 30
+    initial_keywords: list = field(default_factory=lambda: ["ai", "llm", "machine learning", "deep learning", "transformer", "openai"])
+
+
+@dataclass
 class DiscoveryConfig:
     enabled: bool = True
     max_candidates: int = 50
@@ -43,6 +49,7 @@ class Config:
     scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
     ranking: RankingConfig = field(default_factory=RankingConfig)
     discovery: DiscoveryConfig = field(default_factory=DiscoveryConfig)
+    preference: PreferenceConfig = field(default_factory=PreferenceConfig)
 
 
 def load_config(env_path: str = ".env", yaml_path: str = "config.yaml") -> Config:
@@ -95,5 +102,10 @@ def load_config(env_path: str = ".env", yaml_path: str = "config.yaml") -> Confi
             cfg.discovery.enabled = disc.get("enabled", cfg.discovery.enabled)
             cfg.discovery.max_candidates = disc.get("max_candidates", cfg.discovery.max_candidates)
             cfg.discovery.max_pending = disc.get("max_pending", cfg.discovery.max_pending)
+
+        pref = data.get("preference", {})
+        if pref:
+            cfg.preference.half_life_days = pref.get("half_life_days", cfg.preference.half_life_days)
+            cfg.preference.initial_keywords = pref.get("initial_keywords", cfg.preference.initial_keywords)
 
     return cfg

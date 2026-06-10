@@ -98,3 +98,41 @@ class TestToggleSource:
     def test_toggle_without_body(self, client):
         resp = client.patch("/api/sources/arxiv-cs-ai")
         assert resp.json()["status"] == "ok"
+
+
+class TestFilterKeywords:
+    def test_add_source_with_filter_keywords(self, client):
+        resp = client.post("/api/sources", json={
+            "id": "filtered-source", "name": "F", "type": "rss",
+            "config": '{"url": "https://example.com/rss"}',
+            "filter_keywords": '["spam", "ad"]'
+        })
+        assert resp.json()["status"] == "ok"
+
+    def test_update_source_filter_keywords(self, client):
+        resp = client.patch("/api/sources/arxiv-cs-ai", json={
+            "filter_keywords": '["test", "noise"]'
+        })
+        assert resp.json()["status"] == "ok"
+
+    def test_invalid_filter_keywords_rejected(self, client):
+        resp = client.post("/api/sources", json={
+            "id": "bad-filter", "name": "B", "type": "rss",
+            "config": '{"url": "https://example.com/rss"}',
+            "filter_keywords": '{"not": "array"}'
+        })
+        assert resp.status_code == 400
+
+        resp2 = client.post("/api/sources", json={
+            "id": "bad-filter2", "name": "B2", "type": "rss",
+            "config": '{"url": "https://example.com/rss"}',
+            "filter_keywords": 'not json'
+        })
+        assert resp2.status_code == 400
+
+    def test_empty_filter_keywords_default(self, client):
+        resp = client.post("/api/sources", json={
+            "id": "no-filter", "name": "N", "type": "rss",
+            "config": '{"url": "https://example.com/rss"}'
+        })
+        assert resp.json()["status"] == "ok"

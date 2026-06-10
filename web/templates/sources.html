@@ -16,18 +16,20 @@
         <option value="web">Web</option>
     </select>
     <input type="text" id="new-config" placeholder='Config JSON (e.g. {"url": "https://..."})'>
+    <input id="new-filter-kw" placeholder='过滤词 JSON数组 如 ["赞助","广告"]'>
     <button class="btn" onclick="addSource()">添加</button>
     <button class="btn btn-secondary" onclick="document.getElementById('add-form').style.display='none'">取消</button>
 </div>
 
 <table class="sources-table">
-<thead><tr><th>ID</th><th>名称</th><th>类型</th><th>状态</th><th>操作</th></tr></thead>
+<thead><tr><th>ID</th><th>名称</th><th>类型</th><th>过滤词</th><th>状态</th><th>操作</th></tr></thead>
 <tbody>
 {% for s in sources %}
 <tr>
     <td>{{ s.id }}</td>
     <td>{{ s.name }}</td>
     <td>{{ s.type }}</td>
+    <td>{{ s.filter_keywords }}</td>
     <td><input type="checkbox" {% if s.enabled %}checked{% endif %} data-sid="{{ s.id }}" onchange="toggleSource(this)"></td>
     <td><button class="btn btn-danger btn-sm" data-sid="{{ s.id }}" onclick="removeSource(this)">删除</button></td>
 </tr>
@@ -51,6 +53,7 @@ async function addSource() {
         name: document.getElementById('new-name').value,
         type: document.getElementById('new-type').value,
         config: document.getElementById('new-config').value,
+        filter_keywords: document.getElementById('new-filter-kw').value || '[]',
     };
     const resp = await fetch('/api/sources', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
     const result = await resp.json();

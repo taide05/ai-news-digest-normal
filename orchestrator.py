@@ -47,18 +47,39 @@ async def collect_all(db_conn, cfg) -> list:
     tasks = [c.fetch(since) for c in collectors]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
+    source_filters = {}
+    for s in sources:
+        try:
+            kw = json.loads(s.get("filter_keywords", "[]"))
+            if kw:
+                source_filters[s["id"]] = [k.lower() for k in kw]
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     all_articles = []
     for i, result in enumerate(results):
         if isinstance(result, Exception):
             logger.error(f"Collector {collectors[i].name} failed: {result}")
+            from db.models import log_error
+            log_error(db_conn, f"collector:{collectors[i].name}", str(result)[:200], commit=False)
+            db_conn.execute("UPDATE sources SET fail_count = fail_count + 1 WHERE id = ?", (collectors[i].name,))
         else:
             all_articles.extend(result)
             logger.info(f"Collector {collectors[i].name}: {len(result)} articles")
+            db_conn.execute(
+                "UPDATE sources SET last_fetch = datetime('now'), fail_count = 0 WHERE id = ?",
+                (collectors[i].name,)
+            )
 
     logger.info(f"Total fetched: {len(all_articles)}")
 
     new_articles = []
     for art in all_articles:
+        keywords = source_filters.get(art.source_id, [])
+        if keywords:
+            text = (art.title + " " + (art.summary or "")).lower()
+            if any(kw in text for kw in keywords):
+                continue
         aid = insert_article(db_conn, art.source_id, art.url, art.title,
                              summary=art.summary, content=art.content or "",
                              author=art.author, published_at=art.published_at,

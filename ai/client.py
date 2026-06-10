@@ -87,6 +87,12 @@ class AIClient:
             self.circuit_breaker.record_failure()
             raise
 
+    def chat_json(self, system_prompt: str, user_prompt: str, max_tokens: int = 1024):
+        content, tokens = self.chat(system_prompt, user_prompt, max_tokens=max_tokens)
+        from ai.parser import parse_json_response
+        result = parse_json_response(content)
+        return result, tokens
+
     def chat_stream(self, system_prompt: str, user_prompt: str, max_tokens: int = 1024):
         if not self.circuit_breaker.can_execute():
             yield "AI 服务暂时不可用，请稍后再试"

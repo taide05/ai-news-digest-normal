@@ -24,15 +24,15 @@ def test_cold_start_score_empty(test_db, test_config):
 def test_interest_bonus_no_topics():
     from pipeline.ranking import _calculate_interest_bonus
     art = {"title": "GPT-5 released", "summary": "OpenAI announced GPT-5"}
-    result = _calculate_interest_bonus(art, set())
+    result = _calculate_interest_bonus(art, {})
     assert result == 0.0
 
 
 def test_interest_bonus_with_match():
     from pipeline.ranking import _calculate_interest_bonus
     art = {"title": "GPT-5 released with new features", "summary": "OpenAI announced GPT-5"}
-    user_topics = {"gpt-5", "transformer"}
-    result = _calculate_interest_bonus(art, user_topics)
+    topic_weights = {"gpt-5": 1.0, "transformer": 1.0}
+    result = _calculate_interest_bonus(art, topic_weights)
     assert result > 0.0
 
 

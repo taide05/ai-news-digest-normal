@@ -10,3 +10,13 @@ web:
 data:
   full_text_retention_days: 90
   analysis_cache_retention_days: 180
+
+preference:
+  half_life_days: 30
+  initial_keywords:
+    - ai
+    - llm
+    - machine learning
+    - deep learning
+    - transformer
+    - openai

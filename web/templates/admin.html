@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>系统面板</h1>
+
+<div style="display:flex;gap:16px;margin-bottom:24px;">
+    <div class="cluster-card" style="flex:1;text-align:center;">
+        <div style="font-size:2rem;color:var(--accent);">{{ article_count_today }}</div>
+        <div style="color:var(--text-muted);font-size:0.85rem;">今日文章数</div>
+    </div>
+    <div class="cluster-card" style="flex:1;text-align:center;">
+        <div style="font-size:2rem;color:var(--accent);">{{ ai_tokens_today }}</div>
+        <div style="color:var(--text-muted);font-size:0.85rem;">今日AI Token</div>
+    </div>
+    <div class="cluster-card" style="flex:1;text-align:center;">
+        <div style="font-size:2rem;color:var(--accent);">{{ enabled_count }}</div>
+        <div style="color:var(--text-muted);font-size:0.85rem;">已启用的信息源</div>
+    </div>
+</div>
+
+<div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:16px;">
+    {% if last_collection %}
+    最近采集: {{ last_collection }}
+    {% else %}
+    今日暂无采集记录
+    {% endif %}
+</div>
+
+<h2>信息源状态</h2>
+<table class="sources-table">
+<thead><tr><th>名称</th><th>状态</th><th>最近采集</th><th>失败次数</th><th>过滤关键词</th></tr></thead>
+<tbody>
+{% for s in sources %}
+<tr>
+    <td>{{ s.name }}</td>
+    <td>
+        {% if s.enabled %}
+        <span style="color:#4caf50;">启用</span>
+        {% else %}
+        <span style="color:#8b949e;">停用</span>
+        {% endif %}
+    </td>
+    <td>{{ s.last_fetch or '-' }}</td>
+    <td>
+        {% if s.fail_count and s.fail_count > 0 %}
+        <span style="color:#f85149;">{{ s.fail_count }}</span>
+        {% else %}
+        <span style="color:#4caf50;">0</span>
+        {% endif %}
+    </td>
+    <td style="font-size:0.85em;color:var(--text-muted);">{{ s.filter_keywords or '-' }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+<h2>最近错误</h2>
+{% if errors %}
+<table class="sources-table">
+<thead><tr><th>信息源</th><th>错误信息</th><th>时间</th></tr></thead>
+<tbody>
+{% for e in errors %}
+<tr>
+    <td>{{ e.source }}</td>
+    <td style="font-size:0.85em;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ e.message }}</td>
+    <td>{{ e.created_at }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<div style="color:var(--text-muted);padding:16px 0;">暂无错误记录</div>
+{% endif %}
+
+<nav class="bottom-nav">
+    <a href="/">首页</a>
+    <a href="/sources">信息源</a>
+    <a href="/search">搜索</a>
+    <a href="/concepts">概念词典</a>
+    <a href="/review">周报</a>
+</nav>
+{% endblock %}

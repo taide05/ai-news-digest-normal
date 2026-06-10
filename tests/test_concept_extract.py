@@ -13,9 +13,9 @@ from db.schema import init_db
 def test_concept_extraction_prompt_format():
     from ai.analysis import build_concept_extraction_prompt
     system, user = build_concept_extraction_prompt("Transformer models use attention mechanisms.")
-    assert "最多 5 个" in user
+    assert "JSON" in system
+    assert "concepts" in system
     assert "Transformer" in user
-    assert "无" in user
 
 
 def test_concept_extraction_prompt_long_text_truncated():

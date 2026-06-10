@@ -155,6 +155,13 @@ CREATE INDEX IF NOT EXISTS idx_cluster_articles_article ON cluster_articles(arti
 CREATE INDEX IF NOT EXISTS idx_digest_articles_article ON digest_articles(article_id);
 CREATE INDEX IF NOT EXISTS idx_clusters_date ON clusters(digest_date);
 CREATE INDEX IF NOT EXISTS idx_concept_nodes_label ON concept_nodes(concept_label);
+CREATE TABLE IF NOT EXISTS error_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    source      TEXT NOT NULL,
+    message     TEXT NOT NULL,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_concept_nodes_snap_date ON concept_nodes(snap_date);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS articles_fts USING fts5(
@@ -202,6 +209,11 @@ def init_db(db_path: str) -> sqlite3.Connection:
     # v0.5: read_records.topics
     try:
         conn.execute("ALTER TABLE read_records ADD COLUMN topics TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE sources ADD COLUMN filter_keywords TEXT DEFAULT '[]'")
     except sqlite3.OperationalError:
         pass
 

@@ -134,18 +134,18 @@ def get_concepts_list(conn: sqlite3.Connection, limit: int = 30) -> list[dict]:
 
 def get_all_sources(conn) -> list[dict]:
     rows = conn.execute(
-        "SELECT id, name, type, config, enabled, fail_count, last_fetch FROM sources ORDER BY id"
+        "SELECT id, name, type, config, enabled, fail_count, last_fetch, filter_keywords FROM sources ORDER BY id"
     ).fetchall()
-    cols = ["id", "name", "type", "config", "enabled", "fail_count", "last_fetch"]
+    cols = ["id", "name", "type", "config", "enabled", "fail_count", "last_fetch", "filter_keywords"]
     return [dict(zip(cols, r)) for r in rows]
 
 
 def add_source(conn, sid: str, name: str, stype: str, config: str,
-                commit: bool = True) -> bool:
+                filter_keywords: str = "[]", commit: bool = True) -> bool:
     try:
         conn.execute(
-            "INSERT INTO sources (id, name, type, config) VALUES (?, ?, ?, ?)",
-            (sid, name, stype, config)
+            "INSERT INTO sources (id, name, type, config, filter_keywords) VALUES (?, ?, ?, ?, ?)",
+            (sid, name, stype, config, filter_keywords)
         )
         if commit:
             conn.commit()
@@ -164,6 +164,23 @@ def toggle_source(conn, sid: str, enabled: bool, commit: bool = True):
     conn.execute("UPDATE sources SET enabled = ? WHERE id = ?", (int(enabled), sid))
     if commit:
         conn.commit()
+
+
+def update_source_filter(conn, sid: str, filter_keywords: str, commit: bool = True):
+    conn.execute("UPDATE sources SET filter_keywords = ? WHERE id = ?", (filter_keywords, sid))
+    if commit:
+        conn.commit()
+
+
+def log_error(conn, source: str, message: str, commit: bool = True):
+    conn.execute("INSERT INTO error_log (source, message) VALUES (?, ?)", (source, message[:500]))
+    if commit:
+        conn.commit()
+
+
+def get_recent_errors(conn, limit: int = 10) -> list[dict]:
+    rows = conn.execute("SELECT source, message, created_at FROM error_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    return [{"source": r[0], "message": r[1], "created_at": r[2]} for r in rows]
 
 
 def get_pending_candidates(conn, limit: int = 50) -> list[dict]:

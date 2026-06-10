@@ -86,9 +86,15 @@ async def _sse_stream(ai, system_prompt: str, user_prompt: str, max_tokens: int,
 
 
 def _get_user_topics(db) -> list[str]:
-    """Extract user interest topics from read_records for personalization."""
     global _user_topics_cache
     if _user_topics_cache is not None:
+        return _user_topics_cache
+    cfg = get_config()
+    if cfg and db:
+        from ai.preference import compute_user_profile
+        profile = compute_user_profile(db, cfg)
+        topics = list(profile.get("topics", {}).keys())
+        _user_topics_cache = topics[:10]
         return _user_topics_cache
     rows = db.execute(
         "SELECT DISTINCT topics FROM read_records WHERE topics != '' AND feedback = 'interested'"
@@ -350,6 +356,8 @@ async def feedback(article_id: str, feedback: str = Query(...), request: Request
 
     if feedback == "interested":
         _user_topics_cache = None
+        from ai.preference import invalidate_profile_cache
+        invalidate_profile_cache()
         try:
             article = get_article(db, article_id)
             if article:
