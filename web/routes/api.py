@@ -49,9 +49,9 @@ async def list_source_candidates(request: Request = None):
 async def verify_source_candidate(candidate_id: int, request: Request = None):
     db = get_db()
     if db is None:
-        return HTMLResponse('<tr><td colspan="4" style="color:red;padding:10px;">数据库不可用</td></tr>')
+        return HTMLResponse('<tr><td colspan="4" class="candidate-cell status-error">数据库不可用</td></tr>')
     verify_candidate(db, candidate_id)
-    return HTMLResponse('<tr><td colspan="4" style="color:#4caf50;padding:10px;">已确认，已加入信息源列表</td></tr>')
+    return HTMLResponse('<tr><td colspan="4" class="candidate-cell status-success">已确认，已加入信息源列表</td></tr>')
 
 
 @router.post("/api/source-candidates/{candidate_id}/reject")
@@ -59,9 +59,9 @@ async def verify_source_candidate(candidate_id: int, request: Request = None):
 async def reject_source_candidate(candidate_id: int, request: Request = None):
     db = get_db()
     if db is None:
-        return HTMLResponse('<tr><td colspan="4" style="color:red;padding:10px;">数据库不可用</td></tr>')
+        return HTMLResponse('<tr><td colspan="4" class="candidate-cell status-error">数据库不可用</td></tr>')
     reject_candidate(db, candidate_id)
-    return HTMLResponse('<tr><td colspan="4" style="color:#888;padding:10px;">已拒绝</td></tr>')
+    return HTMLResponse('<tr><td colspan="4" class="candidate-cell status-muted">已拒绝</td></tr>')
 
 
 # ── SSE helper ──────────────────────────────────────────────────────
@@ -249,10 +249,10 @@ async def auto_extract_concepts(article_id: str, request: Request = None):
         terms = json.loads(cached)
         if terms:
             badges = "".join(
-                f'<span style="background:#1a237e;color:#fff;padding:2px 8px;border-radius:3px;margin:2px;font-size:0.85em;display:inline-block;">{html.escape(t)}</span>'
+                f'<span class="concept-badge">{html.escape(t)}</span>'
                 for t in terms
             )
-            return HTMLResponse(f'<span style="color:#888;">本文概念：</span>{badges}')
+            return HTMLResponse(f'<span class="concept-label">本文概念：</span>{badges}')
         return HTMLResponse("")
 
     article = get_article(db, article_id)
@@ -291,10 +291,10 @@ async def auto_extract_concepts(article_id: str, request: Request = None):
     cache_analysis(db, article_id, "concepts", concepts_json, tokens_used=tokens)
 
     badges = "".join(
-        f'<span style="background:#1a237e;color:#fff;padding:2px 8px;border-radius:3px;margin:2px;font-size:0.85em;display:inline-block;">{html.escape(t)}</span>'
+        f'<span class="concept-badge">{html.escape(t)}</span>'
         for t in new_terms
     )
-    return HTMLResponse(f'<span style="color:#888;">本文概念：</span>{badges}')
+    return HTMLResponse(f'<span class="concept-label">本文概念：</span>{badges}')
 
 
 @router.get("/api/recommend/{article_id}")
@@ -332,16 +332,15 @@ async def recommend(article_id: str, request: Request = None):
     cards = ""
     for r in merged:
         cards += (
-            f'<div style="padding:8px 12px;margin:4px 0;background:var(--surface);border-radius:4px;'
-            f'border-left:3px solid #2196f3;">'
-            f'<a href="/reader/{r["id"]}" style="font-weight:500;">{html.escape(r["title"])}</a>'
-            f'<span style="color:#888;font-size:0.8em;margin-left:8px;">{html.escape(r["source_id"])}</span>'
-            f'<div style="color:#9c27b0;font-size:0.8em;margin-top:2px;">{html.escape(r["reason"])}</div>'
+            f'<div class="rec-card">'
+            f'<a href="/reader/{r["id"]}" class="rec-card-link">{html.escape(r["title"])}</a>'
+            f'<span class="rec-card-source">{html.escape(r["source_id"])}</span>'
+            f'<div class="rec-card-reason">{html.escape(r["reason"])}</div>'
             f'</div>'
         )
     return HTMLResponse(
-        f'<div style="margin:24px 0;">'
-        f'<h4 style="margin-bottom:8px;">推荐阅读</h4>{cards}</div>'
+        f'<div class="rec-section">'
+        f'<h4 class="rec-title">推荐阅读</h4>{cards}</div>'
     )
 
 
@@ -351,7 +350,7 @@ async def feedback(article_id: str, feedback: str = Query(...), request: Request
     global _user_topics_cache
     db = get_db()
     if db is None:
-        return HTMLResponse('<span style="color:red;">错误</span>')
+        return HTMLResponse('<span class="status-error">错误</span>')
     set_feedback(db, article_id, feedback, commit=False)
 
     if feedback == "interested":
@@ -379,8 +378,8 @@ async def feedback(article_id: str, feedback: str = Query(...), request: Request
     db.commit()
 
     label = "已标记感兴趣" if feedback == "interested" else "已标记不感兴趣"
-    color = "#4caf50" if feedback == "interested" else "#f44336"
-    return HTMLResponse(f'<span style="color:{color};font-weight:500;">{label}</span>')
+    css_class = "feedback-interested" if feedback == "interested" else "feedback-not-interested"
+    return HTMLResponse(f'<span class="{css_class}">{label}</span>')
 
 
 @router.post("/api/generate-review")
