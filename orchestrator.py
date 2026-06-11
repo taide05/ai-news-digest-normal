@@ -47,14 +47,21 @@ async def collect_all(db_conn, cfg) -> list:
     tasks = [c.fetch(since) for c in collectors]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
+    # Build per-source keyword filters (three-tier)
     source_filters = {}
     for s in sources:
-        try:
-            kw = json.loads(s.get("filter_keywords", "[]"))
-            if kw:
-                source_filters[s["id"]] = [k.lower() for k in kw]
-        except (json.JSONDecodeError, TypeError):
-            pass
+        sid = s["id"]
+        filters = {}
+        for tier, key in [("hide", "hide_keywords"), ("highlight", "highlight_keywords"),
+                          ("require", "require_keywords")]:
+            try:
+                kw = json.loads(s.get(key, s.get("filter_keywords" if tier == "hide" else "", "[]")))
+                if kw:
+                    filters[tier] = [k.lower() for k in kw]
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if filters:
+            source_filters[sid] = filters
 
     all_articles = []
     for i, result in enumerate(results):
@@ -75,11 +82,24 @@ async def collect_all(db_conn, cfg) -> list:
 
     new_articles = []
     for art in all_articles:
-        keywords = source_filters.get(art.source_id, [])
-        if keywords:
-            text = (art.title + " " + (art.summary or "")).lower()
-            if any(kw in text for kw in keywords):
-                continue
+        filters = source_filters.get(art.source_id, {})
+        text = (art.title + " " + (art.summary or "")).lower()
+
+        # Tier 1: require_keywords — article MUST contain at least one
+        required = filters.get("require", [])
+        if required and not any(kw in text for kw in required):
+            continue
+
+        # Tier 2: hide_keywords — article must NOT contain any
+        hidden = filters.get("hide", [])
+        if hidden and any(kw in text for kw in hidden):
+            continue
+
+        # Tier 3: highlight_keywords — flag for ranking boost
+        highlight = filters.get("highlight", [])
+        if highlight and any(kw in text for kw in highlight):
+            art._highlight = True
+
         aid = insert_article(db_conn, art.source_id, art.url, art.title,
                              summary=art.summary, content=art.content or "",
                              author=art.author, published_at=art.published_at,

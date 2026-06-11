@@ -58,6 +58,10 @@ def _cold_start_score(articles: list, cfg, db_conn=None) -> list:
         src = art.get("source_id", "")
         score += source_weights.get(src, 0.3) * 0.3
 
+        # Highlight keyword boost from per-source filters
+        if getattr(art, "_highlight", False):
+            score += 0.1
+
         # Small random jitter for diversity
         score += random.uniform(0, 0.05)
 

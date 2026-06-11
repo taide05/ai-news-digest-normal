@@ -156,18 +156,26 @@ def get_concepts_list(conn: sqlite3.Connection, limit: int = 30) -> list[dict]:
 
 def get_all_sources(conn) -> list[dict]:
     rows = conn.execute(
-        "SELECT id, name, type, config, enabled, fail_count, last_fetch, filter_keywords FROM sources ORDER BY id"
+        "SELECT id, name, type, config, enabled, fail_count, last_fetch, "
+        "filter_keywords, hide_keywords, highlight_keywords, require_keywords "
+        "FROM sources ORDER BY id"
     ).fetchall()
-    cols = ["id", "name", "type", "config", "enabled", "fail_count", "last_fetch", "filter_keywords"]
+    cols = ["id", "name", "type", "config", "enabled", "fail_count", "last_fetch",
+            "filter_keywords", "hide_keywords", "highlight_keywords", "require_keywords"]
     return [dict(zip(cols, r)) for r in rows]
 
 
 def add_source(conn, sid: str, name: str, stype: str, config: str,
-                filter_keywords: str = "[]", commit: bool = True) -> bool:
+                filter_keywords: str = "[]", hide_keywords: str = "[]",
+                highlight_keywords: str = "[]", require_keywords: str = "[]",
+                commit: bool = True) -> bool:
     try:
         conn.execute(
-            "INSERT INTO sources (id, name, type, config, filter_keywords) VALUES (?, ?, ?, ?, ?)",
-            (sid, name, stype, config, filter_keywords)
+            "INSERT INTO sources (id, name, type, config, filter_keywords, "
+            "hide_keywords, highlight_keywords, require_keywords) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (sid, name, stype, config, filter_keywords,
+             hide_keywords, highlight_keywords, require_keywords)
         )
         if commit:
             conn.commit()
@@ -190,6 +198,16 @@ def toggle_source(conn, sid: str, enabled: bool, commit: bool = True):
 
 def update_source_filter(conn, sid: str, filter_keywords: str, commit: bool = True):
     conn.execute("UPDATE sources SET filter_keywords = ? WHERE id = ?", (filter_keywords, sid))
+    if commit:
+        conn.commit()
+
+
+def update_source_keywords(conn, sid: str, hide_kw: str, highlight_kw: str,
+                           require_kw: str, commit: bool = True):
+    conn.execute(
+        "UPDATE sources SET hide_keywords=?, highlight_keywords=?, require_keywords=? WHERE id=?",
+        (hide_kw, highlight_kw, require_kw, sid)
+    )
     if commit:
         conn.commit()
 

@@ -18,7 +18,10 @@
             <option value="web">Web</option>
         </select>
         <input type="text" name="config" placeholder='Config JSON (e.g. {"url": "https://..."})' required>
-        <input name="filter_keywords" placeholder='过滤词 JSON数组 如 ["赞助","广告"]' value="[]">
+        <input name="hide_keywords" placeholder='排除关键词 JSON数组 如 ["赞助","广告"]' value="[]">
+        <input name="highlight_keywords" placeholder='高亮关键词 JSON数组 如 ["AI","LLM"]' value="[]">
+        <input name="require_keywords" placeholder='必须包含关键词 JSON数组 如 ["论文"]' value="[]">
+        <input name="filter_keywords" type="hidden" value="[]">
         <div id="add-error" style="color:#f85149;display:none;margin-bottom:8px"></div>
         <button type="submit" class="btn">添加</button>
         <button type="button" class="btn btn-secondary" hx-on:click="document.getElementById('add-form').classList.remove('show-form');var e=document.getElementById('add-error');if(e)e.style.display='none'">取消</button>

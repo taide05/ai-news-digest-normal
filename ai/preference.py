@@ -115,6 +115,8 @@ class RatingEngine:
             score += self._tfidf_cosine(art, profile)
             score += self._source_score(art, profile)
             score *= self._freshness_decay(art)
+            if getattr(art, "_highlight", False):
+                score += 0.08
             score += random.uniform(0, 0.03)
             art["score"] = round(max(0.0, score), 4)
         return sorted(articles, key=lambda a: a.get("score", 0), reverse=True)

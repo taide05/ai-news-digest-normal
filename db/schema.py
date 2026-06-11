@@ -234,6 +234,20 @@ def init_db(db_path: str) -> sqlite3.Connection:
     except sqlite3.OperationalError:
         pass
 
+    # Three-tier keyword filtering migration
+    for col in ("hide_keywords", "highlight_keywords", "require_keywords"):
+        try:
+            conn.execute(f"ALTER TABLE sources ADD COLUMN {col} TEXT DEFAULT '[]'")
+        except sqlite3.OperationalError:
+            pass
+    # Migrate legacy filter_keywords -> hide_keywords
+    conn.execute(
+        "UPDATE sources SET hide_keywords = filter_keywords "
+        "WHERE (hide_keywords IS NULL OR hide_keywords = '[]') "
+        "AND filter_keywords IS NOT NULL AND filter_keywords != '[]'"
+    )
+    conn.commit()
+
     # Backfill ratings from existing read_records feedback
     try:
         conn.execute("""

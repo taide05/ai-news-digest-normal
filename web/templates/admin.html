@@ -31,7 +31,7 @@
 
 <h2>信息源状态</h2>
 <table class="sources-table">
-<thead><tr><th>名称</th><th>状态</th><th>最近采集</th><th>失败次数</th><th>过滤关键词</th></tr></thead>
+<thead><tr><th>名称</th><th>状态</th><th>最近采集</th><th>失败次数</th><th style="font-size:0.8em;">排除词</th><th style="font-size:0.8em;">高亮词</th><th style="font-size:0.8em;">必须词</th></tr></thead>
 <tbody>
 {% for s in sources %}
 <tr>
@@ -51,7 +51,9 @@
         <span class="status-success">0</span>
         {% endif %}
     </td>
-    <td class="cell-muted">{{ s.filter_keywords or '-' }}</td>
+    <td class="cell-muted">{{ s.hide_keywords or '-' }}</td>
+    <td class="cell-muted">{{ s.highlight_keywords or '-' }}</td>
+    <td class="cell-muted">{{ s.require_keywords or '-' }}</td>
 </tr>
 {% endfor %}
 </tbody>
