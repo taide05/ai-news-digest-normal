@@ -33,6 +33,16 @@ async def admin_page(request: Request):
 
     ai = get_ai()
     ai_tokens_today = ai._daily_tokens if ai and hasattr(ai, '_daily_tokens') else 0
+    ai_cost_today = "$0"
+
+    if db:
+        spend_row = db.execute(
+            "SELECT COALESCE(SUM(tokens), 0), COALESCE(SUM(cost_usd), 0) FROM spending WHERE recorded_at >= ?",
+            (today,)
+        ).fetchone()
+        if spend_row:
+            ai_tokens_today = f"{spend_row[0]:,}" if spend_row[0] else "0"
+            ai_cost_today = f"${spend_row[1]:.4f}"
 
     return templates.TemplateResponse(request, "admin.html", {
         "sources": sources,
@@ -41,4 +51,5 @@ async def admin_page(request: Request):
         "last_collection": last_collection,
         "article_count_today": article_count_today,
         "ai_tokens_today": ai_tokens_today,
+        "ai_cost_today": ai_cost_today,
     })

@@ -164,6 +164,16 @@ CREATE TABLE IF NOT EXISTS error_log (
 
 CREATE INDEX IF NOT EXISTS idx_concept_nodes_snap_date ON concept_nodes(snap_date);
 
+CREATE TABLE IF NOT EXISTS spending (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    model          TEXT NOT NULL DEFAULT 'deepseek-chat',
+    tokens         INTEGER NOT NULL DEFAULT 0,
+    cost_usd       REAL NOT NULL DEFAULT 0.0,
+    recorded_at    TEXT DEFAULT (datetime('now')),
+    operation_type TEXT DEFAULT 'chat'
+);
+CREATE INDEX IF NOT EXISTS idx_spending_date ON spending(recorded_at);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS articles_fts USING fts5(
     title, full_text, content='articles', content_rowid='_rowid_'
 );
