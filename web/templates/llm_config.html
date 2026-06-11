@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>LLM 配置</h1>
+
+<p class="status-muted" style="margin-bottom:16px;">
+    .env 文件中的值为默认值，下方设置会覆盖默认值。修改后需重启应用生效。
+</p>
+
+<form hx-post="/api/llm-config" hx-swap="none"
+      hx-on:htmx:afterRequest="try{var r=event.detail.xhr.responseText;document.getElementById('save-result').innerHTML=r}catch(e){}">
+
+    <div class="add-source-form">
+        <label>Provider <span class="status-muted">（模型服务商）</span></label>
+        <select name="provider">
+            <option value="deepseek" {% if config.provider == 'deepseek' %}selected{% endif %}>DeepSeek（默认）</option>
+            <option value="ollama" {% if config.provider == 'ollama' %}selected{% endif %}>Ollama（本地）</option>
+            <option value="openrouter" {% if config.provider == 'openrouter' %}selected{% endif %}>OpenRouter（云端多模型）</option>
+            <option value="openai_compatible" {% if config.provider == 'openai_compatible' %}selected{% endif %}>OpenAI 兼容接口</option>
+        </select>
+
+        <label>Model <span class="status-muted">（模型名称）</span></label>
+        <input type="text" name="model" value="{{ config.model }}" placeholder="e.g. deepseek-chat">
+
+        <label>API Key <span class="status-muted">（留空则使用 .env 中的值）</span></label>
+        <input type="password" name="api_key" value="{{ config.api_key }}" placeholder="sk-...">
+
+        <label>Base URL <span class="status-muted">（API 端点地址）</span></label>
+        <input type="text" name="base_url" value="{{ config.base_url }}" placeholder="https://api.deepseek.com">
+
+        <div id="save-result" style="margin-bottom:8px;"></div>
+        <button type="submit" class="btn btn-primary">保存配置</button>
+    </div>
+</form>
+
+<div style="margin-top:24px;padding:12px;background:var(--surface);border-radius:6px;font-size:0.85em;">
+    <strong>提示：</strong>
+    <ul style="margin:8px 0 0 16px;color:var(--text-muted);">
+        <li><strong>DeepSeek:</strong> model=deepseek-chat, URL=https://api.deepseek.com</li>
+        <li><strong>Ollama:</strong> model=llama3, URL=http://localhost:11434/v1</li>
+        <li><strong>OpenRouter:</strong> model=openai/gpt-4o, URL=https://openrouter.ai/api/v1</li>
+        <li><strong>OpenAI 兼容:</strong> 任意兼容接口的 model + URL</li>
+    </ul>
+</div>
+{% endblock %}

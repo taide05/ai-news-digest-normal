@@ -181,6 +181,11 @@ CREATE TABLE IF NOT EXISTS ratings (
 );
 CREATE INDEX IF NOT EXISTS idx_ratings_rated_at ON ratings(rated_at);
 
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS articles_fts USING fts5(
     title, full_text, content='articles', content_rowid='_rowid_'
 );

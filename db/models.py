@@ -218,6 +218,19 @@ def log_error(conn, source: str, message: str, commit: bool = True):
         conn.commit()
 
 
+def get_setting(conn, key: str, default: str = "") -> str:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return row[0] if row else default
+
+
+def set_setting(conn, key: str, value: str, commit: bool = True):
+    conn.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value)
+    )
+    if commit:
+        conn.commit()
+
+
 def get_recent_errors(conn, limit: int = 10) -> list[dict]:
     rows = conn.execute("SELECT source, message, created_at FROM error_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
     return [{"source": r[0], "message": r[1], "created_at": r[2]} for r in rows]

@@ -78,8 +78,9 @@ class BudgetTracker:
 class AIClient:
     COST_PER_1K_TOKENS = 0.0005  # approximate DeepSeek blended rate
 
-    def __init__(self, api_key: str, model: str = "deepseek-chat", budget: BudgetTracker = None):
-        self.client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+    def __init__(self, api_key: str, model: str = "deepseek-chat",
+                 base_url: str = "https://api.deepseek.com", budget: BudgetTracker = None):
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
         self.circuit_breaker = CircuitBreaker()
         self.budget = budget

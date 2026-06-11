@@ -76,8 +76,12 @@ def main():
     ai_client = None
     if cfg.deepseek_api_key:
         from ai.client import AIClient, BudgetTracker
+        from db.models import get_setting
+        model = get_setting(db_conn, "llm.model", "deepseek-chat")
+        api_key = get_setting(db_conn, "llm.api_key", "") or cfg.deepseek_api_key
+        base_url = get_setting(db_conn, "llm.base_url", "https://api.deepseek.com")
         budget = BudgetTracker(db_conn, daily_limit_usd=1.0, monthly_limit_usd=10.0)
-        ai_client = AIClient(cfg.deepseek_api_key, budget=budget)
+        ai_client = AIClient(api_key, model=model, base_url=base_url, budget=budget)
     else:
         logger.warning(".env 未找到或未配置 DEEPSEEK_API_KEY，AI 功能不可用")
 
