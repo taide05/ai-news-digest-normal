@@ -8,7 +8,7 @@ logger = logging.getLogger("orchestrator")
 
 
 # Stage 1: Collect
-async def collect_all(db_conn, cfg) -> list:
+async def collect_all(db_conn, cfg, ai_client=None) -> list:
     from collectors.registry import get_all, get_enabled
     from db.models import insert_article, get_all_sources
 
@@ -43,6 +43,11 @@ async def collect_all(db_conn, cfg) -> list:
     if not collectors:
         logger.warning("No collectors available for enabled sources")
         return []
+
+    # Configure YouTube collectors with DB + budget context
+    for c in collectors:
+        if hasattr(c, "configure"):
+            c.configure(db_conn=db_conn, budget=getattr(ai_client, "budget", None) if ai_client else None)
 
     tasks = [c.fetch(since) for c in collectors]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -272,7 +277,7 @@ async def push_to_channels(db_conn, cfg, clusters: list, labels: dict, total_fet
 # Full pipeline
 async def run_full_pipeline(db_conn, ai_client, cfg):
     """Run the complete collection pipeline. Returns count of new articles."""
-    articles = await collect_all(db_conn, cfg)
+    articles = await collect_all(db_conn, cfg, ai_client)
     if not articles:
         return 0
 
