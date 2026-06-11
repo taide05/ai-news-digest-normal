@@ -3,10 +3,18 @@ import sqlite3
 import json
 
 
+def get_available_dates(conn: sqlite3.Connection, limit: int = 30) -> list[str]:
+    rows = conn.execute(
+        "SELECT DISTINCT digest_date FROM clusters ORDER BY digest_date DESC LIMIT ?",
+        (limit,)
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
 def get_clusters_for_date(conn: sqlite3.Connection, date_str: str) -> list[dict]:
     rows = conn.execute(
         "SELECT c.id as cluster_id, c.label, a.id, a.title, a.source_id, "
-        "a.language, a.published_at "
+        "a.language, a.published_at, a.summary "
         "FROM clusters c "
         "JOIN cluster_articles ca ON ca.cluster_id = c.id "
         "JOIN articles a ON ca.article_id = a.id "
@@ -21,7 +29,7 @@ def get_clusters_for_date(conn: sqlite3.Connection, date_str: str) -> list[dict]
             result[cid] = {"label": row[1], "articles": []}
         result[cid]["articles"].append({
             "id": row[2], "title": row[3], "source_id": row[4],
-            "language": row[5], "published_at": row[6],
+            "language": row[5], "published_at": row[6], "summary": row[7] or "",
         })
     return list(result.values())
 

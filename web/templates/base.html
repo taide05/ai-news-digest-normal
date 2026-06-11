@@ -11,10 +11,10 @@
 <body>
     <header class="app-header">
         <a href="/" class="app-title">AI 资讯管家</a>
+        {% include '_nav.html' %}
     </header>
     <main class="container">
         {% block content %}{% endblock %}
     </main>
-    {% include '_nav.html' %}
 </body>
 </html>

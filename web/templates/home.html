@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>AI 资讯管家 <span class="date">{{ today }}</span></h1>
+<h1>AI 资讯管家 <span class="date">{{ show_date }}</span></h1>
 
 {% if empty %}
 <div class="empty-state">
@@ -30,8 +30,26 @@ WECOM_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=你的key
 {% endif %}
 </div>
 {% else %}
+
+<!-- Date navigation -->
+{% if available_dates|length > 1 %}
+<div class="date-nav">
+    {% if prev_date %}
+    <a href="/?date={{ prev_date }}" class="date-nav-arrow">&larr; 前一天</a>
+    {% else %}
+    <span class="date-nav-arrow date-nav-disabled">&larr; 前一天</span>
+    {% endif %}
+    <span class="date-nav-current">{{ show_date }}</span>
+    {% if next_date %}
+    <a href="/?date={{ next_date }}" class="date-nav-arrow">后一天 &rarr;</a>
+    {% else %}
+    <span class="date-nav-arrow date-nav-disabled">后一天 &rarr;</span>
+    {% endif %}
+</div>
+{% endif %}
+
 <div class="digest-summary">
-    今日 {{ clusters|map(attribute='articles')|map('length')|sum if clusters else 0 }} 篇文章，{{ clusters|length }} 个话题
+    {{ clusters|map(attribute='articles')|map('length')|sum if clusters else 0 }} 篇文章，{{ clusters|length }} 个话题
 </div>
 
 <div class="clusters">
@@ -39,22 +57,26 @@ WECOM_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=你的key
 <div class="cluster-card">
     <h3 class="cluster-label">
         {{ cluster.label }}
-        <span class="article-count">[{{ cluster.articles|length }} 篇相关]</span>
+        <span class="article-count">{{ cluster.articles|length }} 篇</span>
     </h3>
+    <div class="article-list">
     {% for article in cluster.articles %}
-    <div class="article-item">
-        <a href="/reader/{{ article.id }}" class="article-link">{{ article.title }}</a>
-        {% set count = cluster.articles|length %}
-        {% if count >= 3 %}
-        <span class="cluster-badge">+{{ count - 1 }}篇同类</span>
-        {% endif %}
-        <span class="article-meta">
-            <span class="priority-dot" style="--priority-color: {{ article.priority_color }};" title="优先级: {{ '%.1f'|format(article.priority_weight) }}"></span>
-            {{ article.source_id }} · {{ article.language | upper }}
-            {% if article.published_at %} · {{ article.published_at[:10] }}{% endif %}
-        </span>
-    </div>
+    <a href="/reader/{{ article.id }}" class="article-card">
+        <span class="source-dot" style="background:{{ article.priority_color }};" title="{{ article.source_label }}"></span>
+        <div class="article-card-body">
+            <span class="article-card-title">{{ article.title }}</span>
+            {% if article.summary %}
+            <span class="article-card-summary">{{ article.summary[:120] }}{% if article.summary|length > 120 %}...{% endif %}</span>
+            {% endif %}
+            <span class="article-card-meta">
+                {{ article.source_label }}
+                · {{ article.language | upper }}
+                {% if article.published_at %} · {{ article.published_at[:10] }}{% endif %}
+            </span>
+        </div>
+    </a>
     {% endfor %}
+    </div>
 </div>
 {% endfor %}
 </div>
