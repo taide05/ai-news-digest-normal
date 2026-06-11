@@ -3,22 +3,26 @@
 <h1>信息源管理</h1>
 
 <div class="sources-toolbar">
-    <button class="btn" onclick="document.getElementById('add-form').style.display='block'">+ 添加源</button>
+    <button class="btn" hx-on:click="document.getElementById('add-form').classList.add('show-form');var e=document.getElementById('add-error');if(e)e.style.display='none'">+ 添加源</button>
 </div>
 
 <div id="add-form" class="add-source-form">
     <h3>添加新信息源</h3>
-    <input type="text" id="new-id" placeholder="ID (e.g. my-rss)">
-    <input type="text" id="new-name" placeholder="名称">
-    <select id="new-type">
-        <option value="rss">RSS</option>
-        <option value="api">API</option>
-        <option value="web">Web</option>
-    </select>
-    <input type="text" id="new-config" placeholder='Config JSON (e.g. {"url": "https://..."})'>
-    <input id="new-filter-kw" placeholder='过滤词 JSON数组 如 ["赞助","广告"]'>
-    <button class="btn" onclick="addSource()">添加</button>
-    <button class="btn btn-secondary" onclick="document.getElementById('add-form').style.display='none'">取消</button>
+    <form hx-post="/api/sources" hx-swap="none"
+          hx-on:htmx:afterRequest="try{var r=JSON.parse(event.detail.xhr.response);if(r.status!=='ok'){var e=document.getElementById('add-error');e.textContent=r.message;e.style.display='block'}}catch(e){}">
+        <input type="text" name="id" placeholder="ID (e.g. my-rss)" required>
+        <input type="text" name="name" placeholder="名称" required>
+        <select name="type">
+            <option value="rss">RSS</option>
+            <option value="api">API</option>
+            <option value="web">Web</option>
+        </select>
+        <input type="text" name="config" placeholder='Config JSON (e.g. {"url": "https://..."})' required>
+        <input name="filter_keywords" placeholder='过滤词 JSON数组 如 ["赞助","广告"]' value="[]">
+        <div id="add-error" style="color:#f85149;display:none;margin-bottom:8px"></div>
+        <button type="submit" class="btn">添加</button>
+        <button type="button" class="btn btn-secondary" hx-on:click="document.getElementById('add-form').classList.remove('show-form');var e=document.getElementById('add-error');if(e)e.style.display='none'">取消</button>
+    </form>
 </div>
 
 <table class="sources-table">
@@ -30,36 +34,25 @@
     <td>{{ s.name }}</td>
     <td>{{ s.type }}</td>
     <td>{{ s.filter_keywords }}</td>
-    <td><input type="checkbox" {% if s.enabled %}checked{% endif %} data-sid="{{ s.id }}" onchange="toggleSource(this)"></td>
-    <td><button class="btn btn-danger btn-sm" data-sid="{{ s.id }}" onclick="removeSource(this)">删除</button></td>
+    <td>
+        <input type="checkbox" name="enabled" value="true"
+               {% if s.enabled %}checked{% endif %}
+               hx-patch="/api/sources/{{ s.id }}"
+               hx-include="this"
+               hx-trigger="change"
+               hx-swap="none">
+    </td>
+    <td>
+        <button class="btn btn-danger btn-sm"
+                hx-delete="/api/sources/{{ s.id }}"
+                hx-confirm="确定删除 {{ s.id }} ?"
+                hx-target="closest tr"
+                hx-swap="delete">
+            删除
+        </button>
+    </td>
 </tr>
 {% endfor %}
 </tbody>
 </table>
-
-<script>
-async function addSource() {
-    const data = {
-        id: document.getElementById('new-id').value,
-        name: document.getElementById('new-name').value,
-        type: document.getElementById('new-type').value,
-        config: document.getElementById('new-config').value,
-        filter_keywords: document.getElementById('new-filter-kw').value || '[]',
-    };
-    const resp = await fetch('/api/sources', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
-    const result = await resp.json();
-    if (result.status === 'ok') location.reload();
-    else alert('添加失败: ' + (result.message || '未知错误'));
-}
-async function toggleSource(cb) {
-    var id = cb.getAttribute('data-sid');
-    await fetch('/api/sources/' + id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled: cb.checked})});
-}
-async function removeSource(btn) {
-    var id = btn.getAttribute('data-sid');
-    if (!confirm('确定删除 ' + id + ' ?')) return;
-    await fetch('/api/sources/' + id, {method:'DELETE'});
-    btn.closest('tr').remove();
-}
-</script>
 {% endblock %}

@@ -184,6 +184,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
 
 /* add-source form hidden state */
 #add-form { display: none; }
+#add-form.show-form { display: block; }
 
 /* Graph page */
 .graph-controls { margin-bottom: 12px; }

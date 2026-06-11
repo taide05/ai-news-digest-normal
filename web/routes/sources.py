@@ -14,13 +14,25 @@ async def sources_page(request: Request):
     return templates.TemplateResponse(request, "sources.html", {"sources": sources})
 
 
+async def _parse_request_data(request: Request):
+    """Parse request body as JSON or form-encoded, returning a dict or raising ValueError."""
+    try:
+        return await request.json()
+    except Exception:
+        content_type = request.headers.get("content-type", "")
+        if "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+            form = await request.form()
+            return {key: form[key] for key in form}
+        raise ValueError("Invalid request body")
+
+
 @router.post("/api/sources")
 async def api_add_source(request: Request):
     db = get_db()
     if not db:
         return JSONResponse({"status": "error", "message": "DB not available"})
     try:
-        data = await request.json()
+        data = await _parse_request_data(request)
         sid = str(data.get("id", "")).strip()
         name = str(data.get("name", "")).strip()
         stype = str(data.get("type", "")).strip()
@@ -49,7 +61,7 @@ async def api_add_source(request: Request):
 
     ok = add_source(db, sid, name, stype, config, filter_keywords)
     if ok:
-        return JSONResponse({"status": "ok"})
+        return JSONResponse({"status": "ok"}, headers={"HX-Refresh": "true"})
     return JSONResponse({"status": "error", "message": "Source ID already exists"})
 
 
@@ -68,9 +80,18 @@ async def api_toggle_source(sid: str, request: Request):
     if not db:
         return JSONResponse({"status": "error", "message": "DB not available"})
     try:
-        data = await request.json()
+        data = await _parse_request_data(request)
     except Exception:
         data = {}
+    # htmx checkbox: when unchecked, 'enabled' is absent from form data
+    if "enabled" not in data:
+        content_type = request.headers.get("content-type", "")
+        is_form = "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type
+        if is_form:
+            data["enabled"] = False
+    # Normalize enabled value (string from form data → bool)
+    if "enabled" in data and isinstance(data["enabled"], str):
+        data["enabled"] = data["enabled"].lower() in ("true", "on", "1")
     import json
     if "filter_keywords" in data:
         try:
