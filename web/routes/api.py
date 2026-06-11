@@ -234,6 +234,14 @@ async def concept_lookup(request: Request):
     if article_id:
         link_article_concept(db, article_id, cid)
 
+    if request.headers.get("HX-Request"):
+        escaped_term = html.escape(term)
+        escaped_def = html.escape(definition) if definition else ""
+        return HTMLResponse(
+            f'<span class="concept-lookup-result">'
+            f'<strong>{escaped_term}</strong>: {escaped_def}'
+            f'</span>'
+        )
     return JSONResponse({"term": term, "definition": definition})
 
 

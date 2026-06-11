@@ -5,33 +5,33 @@
 <p class="subtitle">AI 自动发现的潜在优质信息源，审核后加入采集列表</p>
 
 {% if candidates %}
-<table style="width:100%; border-collapse: collapse; margin-top: 16px;">
+<table class="candidates-table">
   <thead>
-    <tr style="text-align: left; border-bottom: 2px solid var(--border);">
-      <th style="padding: 10px;">来源</th>
-      <th style="padding: 10px;">描述</th>
-      <th style="padding: 10px;">评分</th>
-      <th style="padding: 10px;">操作</th>
+    <tr>
+      <th>来源</th>
+      <th>描述</th>
+      <th>评分</th>
+      <th>操作</th>
     </tr>
   </thead>
   <tbody>
     {% for c in candidates %}
-    <tr style="border-bottom: 1px solid var(--border);" id="candidate-{{ c.id }}">
-      <td style="padding: 10px;">
+    <tr id="candidate-{{ c.id }}">
+      <td>
         <strong>{{ c.title or '未知' }}</strong>
-        <br><small style="color: #888;">{{ c.url }}</small>
+        <br><small class="candidate-url">{{ c.url }}</small>
       </td>
-      <td style="padding: 10px;">{{ c.description or '-' }}</td>
-      <td style="padding: 10px;">{{ "%.2f"|format(c.relevance_score) }}</td>
-      <td style="padding: 10px;">
+      <td>{{ c.description or '-' }}</td>
+      <td>{{ "%.2f"|format(c.relevance_score) }}</td>
+      <td class="candidate-actions">
         <button hx-post="/api/source-candidates/{{ c.id }}/verify"
                 hx-swap="outerHTML" hx-target="#candidate-{{ c.id }}"
-                style="background: #4caf50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-right: 6px;">
+                class="btn-positive btn-feedback-sm">
           确认
         </button>
         <button hx-post="/api/source-candidates/{{ c.id }}/reject"
                 hx-swap="outerHTML" hx-target="#candidate-{{ c.id }}"
-                style="background: #f44336; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                class="btn-negative btn-feedback-sm">
           拒绝
         </button>
       </td>
@@ -40,7 +40,7 @@
   </tbody>
 </table>
 {% else %}
-<p style="color: #888; margin-top: 24px;">暂无候选信息源。运行采集后，AI 会自动从文章中发掘新源。</p>
+<p class="candidate-empty">暂无候选信息源。运行采集后，AI 会自动从文章中发掘新源。</p>
 {% endif %}
 
 {% endblock %}

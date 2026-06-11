@@ -2,18 +2,18 @@
 {% block content %}
 <h1>资讯关联图</h1>
 
-<div style="margin-bottom:12px;">
-    <a href="/graph?period=today" class="btn" style="{% if period=='today' and not compare %}font-weight:bold;{% endif %}">今天</a>
-    <a href="/graph?period=week" class="btn" style="{% if period=='week' and not compare %}font-weight:bold;{% endif %}">本周</a>
+<div class="graph-controls">
+    <a href="/graph?period=today" class="btn graph-period-link{% if period=='today' and not compare %} active{% endif %}">今天</a>
+    <a href="/graph?period=week" class="btn graph-period-link{% if period=='week' and not compare %} active{% endif %}">本周</a>
     {% if dates|length > 1 %}
-    <select id="compare-select" onchange="if(this.value)location.href='/graph?period={{period}}&compare='+this.value" style="margin-left:8px;padding:4px 8px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:4px;">
+    <select id="compare-select" onchange="if(this.value)location.href='/graph?period={{period}}&compare='+this.value" class="graph-compare-select">
         <option value="">对比历史...</option>
         {% for d in dates %}
         <option value="{{ d }}" {% if compare==d %}selected{% endif %}>{{ d }}</option>
         {% endfor %}
     </select>
     {% if compare %}
-    <a href="/graph?period={{ period }}" class="btn" style="margin-left:4px;">取消对比</a>
+    <a href="/graph?period={{ period }}" class="btn graph-compare-cancel">取消对比</a>
     {% endif %}
     {% endif %}
 </div>
@@ -22,19 +22,19 @@
 <div class="empty-state"><p>{{ '今天' if period=='today' else '本周' }}还没有已分析的文章。</p></div>
 {% else %}
 {% if compare and compare_nodes|length > 0 %}
-<div style="display:flex;gap:16px;flex-wrap:wrap;">
-    <div style="flex:1;min-width:300px;">
-        <div style="text-align:center;color:#888;margin-bottom:4px;">{{ period }} · 当前</div>
-        <svg id="graph-svg" width="100%" height="400" style="background:var(--surface);border-radius:8px;"></svg>
+<div class="graph-compare-row">
+    <div class="graph-compare-col">
+        <div class="graph-label">{{ period }} · 当前</div>
+        <svg id="graph-svg" width="100%" height="400" class="graph-svg"></svg>
     </div>
-    <div style="flex:1;min-width:300px;">
-        <div style="text-align:center;color:#888;margin-bottom:4px;">{{ compare }}</div>
-        <svg id="compare-svg" width="100%" height="400" style="background:var(--surface);border-radius:8px;"></svg>
+    <div class="graph-compare-col">
+        <div class="graph-label">{{ compare }}</div>
+        <svg id="compare-svg" width="100%" height="400" class="graph-svg"></svg>
     </div>
 </div>
 {% else %}
-<div style="text-align:center;color:#888;margin-bottom:8px;">{{ node_count }} 个节点 · {{ edge_count }} 条边</div>
-<svg id="graph-svg" width="100%" height="500" style="background:var(--surface);border-radius:8px;"></svg>
+<div class="graph-label graph-label-lg">{{ node_count }} 个节点 · {{ edge_count }} 条边</div>
+<svg id="graph-svg" width="100%" height="500" class="graph-svg"></svg>
 {% endif %}
 {% endif %}
 

@@ -2,9 +2,9 @@
 {% block content %}
 <div class="reader-header">
     <a href="/" class="back-link">&larr; 返回首页</a>
-    <div class="feedback-buttons" style="display:flex;gap:8px;">
-        <button hx-post="/api/feedback/{{ article.id }}?feedback=interested" hx-swap="none" style="background:#4caf50;color:white;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;">👍 感兴趣</button>
-        <button hx-post="/api/feedback/{{ article.id }}?feedback=not_interested" hx-swap="none" style="background:#f44336;color:white;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;">👎 不感兴趣</button>
+    <div class="feedback-buttons">
+        <button hx-post="/api/feedback/{{ article.id }}?feedback=interested" hx-swap="none" class="btn-positive btn-feedback-sm">👍 感兴趣</button>
+        <button hx-post="/api/feedback/{{ article.id }}?feedback=not_interested" hx-swap="none" class="btn-negative btn-feedback-sm">👎 不感兴趣</button>
     </div>
 </div>
 
@@ -36,7 +36,14 @@
 
 <div class="concept-lookup">
     <span class="hint">选中文字后点击按钮：</span>
-    <button id="concept-btn" class="btn" onclick="lookupConcept()">查这个概念</button>
+    <button id="concept-btn" class="btn"
+            hx-post="/api/concept-lookup"
+            hx-vals='js:{"term": window.getSelection().toString().trim(), "article_id": "{{ article.id }}"}'
+            hx-target="#concept-lookup-result"
+            hx-swap="innerHTML">
+        查这个概念
+    </button>
+    <span id="concept-lookup-result"></span>
 </div>
 
 <div class="analysis-section" id="core-insight">
@@ -51,13 +58,13 @@
      hx-trigger="load delay:2s"
      hx-target="#concept-tags" hx-swap="innerHTML">
 </div>
-<div id="concept-tags" style="margin:8px 0;"></div>
+<div id="concept-tags"></div>
 
-<div class="analysis-section" id="what-it-means">
-    <h3 style="cursor:pointer;" onclick="toggleSection('wim-content')">
-        这意味着什么？ <span style="font-size:0.8em;color:#888;">（点击展开）</span>
-    </h3>
-    <div id="wim-content" style="display:none;">
+<details class="analysis-section" id="what-it-means">
+    <summary class="analysis-toggle">
+        这意味着什么？
+    </summary>
+    <div class="analysis-toggle-body">
         <button hx-get="/api/analyze/{{ article.id }}?type=what_it_means" hx-target="#wim-result"
                 hx-swap="innerHTML" hx-ext="sse"
                 sse-connect="/api/analyze/{{ article.id }}?type=what_it_means"
@@ -66,7 +73,7 @@
         </button>
         <div id="wim-result"></div>
     </div>
-</div>
+</details>
 
 {% if cluster_article_count >= 3 %}
 <div class="analysis-section" id="cross-compare">
@@ -75,39 +82,21 @@
             class="btn">
         对比同话题 {{ cluster_article_count }} 篇文章
     </button>
-    <div id="cross-compare-result" style="margin-top:12px;"></div>
+    <div id="cross-compare-result"></div>
 </div>
 {% endif %}
 
-<script>
-function toggleSection(id) {
-    const el = document.getElementById(id);
-    el.style.display = el.style.display === 'none' ? 'block' : 'none';
-}
 
-function lookupConcept() {
-    const selection = window.getSelection().toString().trim();
-    if (!selection || selection.length > 100) return;
-    fetch('/api/concept-lookup', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({term: selection, article_id: '{{ article.id }}'})
-    }).then(r => r.json()).then(d => {
-        if (d.definition) alert(d.term + ': ' + d.definition);
-    });
-}
-</script>
-
-<div class="feedback-bar" style="margin: 24px 0; padding: 16px; background: var(--surface); border-radius: 8px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-  <span style="font-weight: 500;">这篇文章对你有帮助吗？</span>
+<div class="feedback-bar">
+  <span class="feedback-bar-label">这篇文章对你有帮助吗？</span>
   <button hx-post="/api/feedback/{{ article.id }}?feedback=interested"
           hx-swap="outerHTML"
-          style="background: #4caf50; color: white; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 14px;">
+          class="btn-positive btn-feedback">
     👍 感兴趣
   </button>
   <button hx-post="/api/feedback/{{ article.id }}?feedback=not_interested"
           hx-swap="outerHTML"
-          style="background: #f44336; color: white; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 14px;">
+          class="btn-negative btn-feedback">
     👎 不感兴趣
   </button>
 </div>
@@ -116,9 +105,9 @@ function lookupConcept() {
      hx-trigger="load delay:3s"
      hx-target="#recommend-block" hx-swap="innerHTML">
 </div>
-<div id="recommend-block" style="margin:24px 0;"></div>
+<div id="recommend-block"></div>
 
-<div class="export-bar" style="margin:16px 0;">
+<div class="export-bar">
     <a href="/api/export/article/{{ article.id }}" class="btn">导出 Markdown</a>
 </div>
 {% endblock %}
