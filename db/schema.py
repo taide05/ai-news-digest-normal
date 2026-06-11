@@ -186,6 +186,19 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS implicit_signals (
+    article_id   TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    signal_type  TEXT NOT NULL CHECK(signal_type IN ('read', 'saved', 'dismissed')),
+    created_at   TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (article_id, signal_type)
+);
+
+CREATE TABLE IF NOT EXISTS synonym_groups (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL,
+    terms TEXT NOT NULL
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS articles_fts USING fts5(
     title, full_text, content='articles', content_rowid='_rowid_'
 );
@@ -267,6 +280,27 @@ def init_db(db_path: str) -> sqlite3.Connection:
         conn.commit()
     except sqlite3.OperationalError:
         pass
+
+    # Seed default synonym groups for AI/ML terms
+    cur = conn.execute("SELECT COUNT(*) FROM synonym_groups")
+    if cur.fetchone()[0] == 0:
+        conn.execute(
+            "INSERT INTO synonym_groups (label, terms) VALUES (?, ?)",
+            ("LLM", '["llm", "large language model", "language model"]')
+        )
+        conn.execute(
+            "INSERT INTO synonym_groups (label, terms) VALUES (?, ?)",
+            ("AI", '["ai", "artificial intelligence", "machine intelligence"]')
+        )
+        conn.execute(
+            "INSERT INTO synonym_groups (label, terms) VALUES (?, ?)",
+            ("ML", '["ml", "machine learning", "deep learning"]')
+        )
+        conn.execute(
+            "INSERT INTO synonym_groups (label, terms) VALUES (?, ?)",
+            ("GPT", '["gpt", "generative pre-trained transformer", "chatgpt"]')
+        )
+        conn.commit()
 
     cur = conn.execute("SELECT COUNT(*) FROM sources")
     if cur.fetchone()[0] == 0:

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from web.globals import get_db
-from db.models import get_article, record_read
+from db.models import get_article, record_read, record_implicit_signal
 from web.templates import templates
 
 router = APIRouter()
@@ -15,6 +15,7 @@ async def reader(request: Request, article_id: str):
         return HTMLResponse("Article not found", status_code=404)
 
     record_read(db, article_id)
+    record_implicit_signal(db, article_id, "read", commit=False)
 
     cluster_id = ""
     cluster_count = 0

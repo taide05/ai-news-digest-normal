@@ -135,10 +135,38 @@ class RatingEngine:
         return self._cache
 
     def _build_profile(self) -> dict:
-        """Build scoring profile from ratings table with time decay."""
-        from db.models import get_ratings
-        ratings = get_ratings(self.db)
+        """Build scoring profile from ratings table + implicit signals with time decay."""
+        from db.models import get_ratings, get_implicit_signals, get_synonym_groups
+        ratings = list(get_ratings(self.db))
         half_life = self.cfg.preference.half_life_days
+
+        # Merge implicit signals as virtual ratings
+        signals = get_implicit_signals(self.db)
+        signal_rating_map = {"read": 3.5, "saved": 4.5, "dismissed": 1.5}
+        for sig in signals:
+            aid = sig["article_id"]
+            if not any(r["article_id"] == aid for r in ratings):
+                ratings.append({
+                    "article_id": aid,
+                    "rating": signal_rating_map.get(sig["signal_type"], 3),
+                    "rated_at": sig["created_at"],
+                    "title": aid,  # placeholder; actual match via article_id
+                    "summary": "",
+                    "source_id": "",
+                })
+
+        # Build synonym expansion map
+        synonym_map = {}
+        for sg in get_synonym_groups(self.db):
+            import json
+            try:
+                terms = json.loads(sg["terms"])
+                if isinstance(terms, list):
+                    base = terms[0].lower() if terms else ""
+                    for t in terms:
+                        synonym_map[t.lower()] = base
+            except (json.JSONDecodeError, TypeError):
+                pass
 
         liked_terms = Counter()
         disliked_terms = Counter()
@@ -199,6 +227,7 @@ class RatingEngine:
             "idf": idf,
             "profile_vector": self._profile_tfidf_vector(liked_docs, vocab, idf),
             "total_weight": total_weight,
+            "synonym_map": synonym_map,
         }
         return self._cache
 
@@ -214,17 +243,27 @@ class RatingEngine:
         return min(0.15, boost)
 
     def _term_overlap(self, art, profile) -> float:
-        """Score by overlap between article tokens and liked/disliked terms."""
+        """Score by overlap between article tokens and liked/disliked terms.
+
+        Synonym-group terms are expanded: matching a synonym counts toward
+        the canonical form.
+        """
         text = ((art.get("title") or "") + " " + (art.get("summary") or "")).lower()
         tokens = set(self._tokenize(text))
+        # Expand tokens via synonym map
+        synonym_map = profile.get("synonym_map", {})
+        expanded = set(tokens)
+        for t in tokens:
+            if t in synonym_map:
+                expanded.add(synonym_map[t])
         liked = profile.get("liked_terms", Counter())
         disliked = profile.get("disliked_terms", Counter())
 
         if not liked and not disliked:
             return 0.0
 
-        pos = sum(liked.get(t, 0) for t in tokens) / max(1, sum(liked.values()))
-        neg = sum(disliked.get(t, 0) for t in tokens) / max(1, sum(disliked.values()))
+        pos = sum(liked.get(t, 0) for t in expanded) / max(1, sum(liked.values()))
+        neg = sum(disliked.get(t, 0) for t in expanded) / max(1, sum(disliked.values()))
         return round((pos - neg * 0.5) * 0.25, 4)
 
     def _bigram_overlap(self, art, profile) -> float:

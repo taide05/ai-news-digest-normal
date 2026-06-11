@@ -362,10 +362,12 @@ async def feedback(article_id: str, feedback: str = Query(...), request: Request
     set_feedback(db, article_id, feedback, commit=False)
 
     # Record rating for preference learning
-    from db.models import record_rating
+    from db.models import record_rating, record_implicit_signal
     rating_map = {"interested": 4, "not_interested": 2}
     if feedback in rating_map:
         record_rating(db, article_id, rating_map[feedback], commit=False)
+        if feedback == "not_interested":
+            record_implicit_signal(db, article_id, "dismissed", commit=False)
 
     if feedback == "interested":
         _user_topics_cache = None

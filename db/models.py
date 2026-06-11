@@ -231,6 +231,30 @@ def set_setting(conn, key: str, value: str, commit: bool = True):
         conn.commit()
 
 
+def record_implicit_signal(conn, article_id: str, signal_type: str, commit: bool = True):
+    """Record a read/saved/dismissed signal for an article."""
+    conn.execute(
+        "INSERT OR IGNORE INTO implicit_signals (article_id, signal_type) VALUES (?, ?)",
+        (article_id, signal_type)
+    )
+    if commit:
+        conn.commit()
+
+
+def get_implicit_signals(conn) -> list[dict]:
+    """Return all implicit signals for preference computation."""
+    rows = conn.execute(
+        "SELECT article_id, signal_type, created_at FROM implicit_signals ORDER BY created_at DESC"
+    ).fetchall()
+    return [dict(zip(["article_id", "signal_type", "created_at"], row)) for row in rows]
+
+
+def get_synonym_groups(conn) -> list[dict]:
+    """Return all synonym groups for term expansion."""
+    rows = conn.execute("SELECT id, label, terms FROM synonym_groups ORDER BY id").fetchall()
+    return [{"id": row[0], "label": row[1], "terms": row[2]} for row in rows]
+
+
 def get_recent_errors(conn, limit: int = 10) -> list[dict]:
     rows = conn.execute("SELECT source, message, created_at FROM error_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
     return [{"source": r[0], "message": r[1], "created_at": r[2]} for r in rows]
