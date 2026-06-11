@@ -72,6 +72,28 @@ def set_feedback(conn: sqlite3.Connection, article_id: str, feedback: str,
         conn.commit()
 
 
+def record_rating(conn: sqlite3.Connection, article_id: str, rating: int,
+                  commit: bool = True):
+    """Record a 1-5 rating for an article, replacing any prior rating."""
+    conn.execute(
+        "INSERT OR REPLACE INTO ratings (article_id, rating, rated_at) VALUES (?, ?, datetime('now'))",
+        (article_id, rating)
+    )
+    if commit:
+        conn.commit()
+
+
+def get_ratings(conn: sqlite3.Connection) -> list[dict]:
+    """Return all ratings with article metadata for profile computation."""
+    rows = conn.execute(
+        "SELECT r.article_id, r.rating, r.rated_at, a.title, a.summary, a.source_id "
+        "FROM ratings r JOIN articles a ON r.article_id = a.id "
+        "ORDER BY r.rated_at DESC"
+    ).fetchall()
+    return [dict(zip(["article_id", "rating", "rated_at", "title", "summary", "source_id"], row))
+            for row in rows]
+
+
 def get_or_create_concept(conn: sqlite3.Connection, term: str, definition: str = "",
                           commit: bool = True) -> int:
     row = conn.execute("SELECT id, query_count FROM concepts WHERE term = ?", (term,)).fetchone()

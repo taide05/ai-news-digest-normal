@@ -12,13 +12,19 @@ def score_articles(db_conn, articles: list, cfg) -> list:
     Phase 1 (feedback < cold_start_threshold): time decay + source reputation
     Phase 2 (progressive blend): interest_weight grows from 0->1 between threshold->blend_max
     """
-    feedback_count = _count_feedback(db_conn)
+    from ai.preference import RatingEngine
+    engine = RatingEngine(db_conn, cfg)
+    rating_count = engine.feedback_count()
 
-    if feedback_count < cfg.ranking.cold_start_threshold:
+    if rating_count < cfg.ranking.cold_start_threshold:
         return _cold_start_score(articles, cfg, db_conn)
-    else:
-        blend = min(1.0, max(0, (feedback_count - cfg.ranking.cold_start_threshold) / max(1, cfg.ranking.blend_max - cfg.ranking.cold_start_threshold)))
-        return _blend_score(db_conn, articles, cfg, blend)
+
+    articles = engine.rank_articles(articles)
+    # Mark exploration floor
+    exploration_count = max(cfg.ranking.exploration_floor, int(len(articles) * 0.2))
+    for i, art in enumerate(articles):
+        art["_explore"] = i >= (len(articles) - exploration_count)
+    return articles
 
 
 def _count_feedback(db_conn) -> int:

@@ -361,6 +361,12 @@ async def feedback(article_id: str, feedback: str = Query(...), request: Request
         return HTMLResponse('<span class="status-error">错误</span>')
     set_feedback(db, article_id, feedback, commit=False)
 
+    # Record rating for preference learning
+    from db.models import record_rating
+    rating_map = {"interested": 4, "not_interested": 2}
+    if feedback in rating_map:
+        record_rating(db, article_id, rating_map[feedback], commit=False)
+
     if feedback == "interested":
         _user_topics_cache = None
         from ai.preference import invalidate_profile_cache

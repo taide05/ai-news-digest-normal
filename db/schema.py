@@ -174,6 +174,13 @@ CREATE TABLE IF NOT EXISTS spending (
 );
 CREATE INDEX IF NOT EXISTS idx_spending_date ON spending(recorded_at);
 
+CREATE TABLE IF NOT EXISTS ratings (
+    article_id   TEXT PRIMARY KEY,
+    rating       INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+    rated_at     TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ratings_rated_at ON ratings(rated_at);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS articles_fts USING fts5(
     title, full_text, content='articles', content_rowid='_rowid_'
 );
@@ -224,6 +231,21 @@ def init_db(db_path: str) -> sqlite3.Connection:
 
     try:
         conn.execute("ALTER TABLE sources ADD COLUMN filter_keywords TEXT DEFAULT '[]'")
+    except sqlite3.OperationalError:
+        pass
+
+    # Backfill ratings from existing read_records feedback
+    try:
+        conn.execute("""
+            INSERT OR IGNORE INTO ratings (article_id, rating, rated_at)
+            SELECT article_id,
+                   CASE WHEN feedback='interested' THEN 4
+                        WHEN feedback='not_interested' THEN 2
+                        ELSE 3 END,
+                   opened_at
+            FROM read_records WHERE feedback IS NOT NULL
+        """)
+        conn.commit()
     except sqlite3.OperationalError:
         pass
 
