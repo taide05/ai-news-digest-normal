@@ -1,6 +1,6 @@
 [project]
 name = "ai-news-digest"
-version = "0.1.0"
+version = "1.2.0"
 description = "Personal AI news digest with local web panel"
 requires-python = ">=3.12"
 dependencies = [
